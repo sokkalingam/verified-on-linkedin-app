@@ -4,7 +4,10 @@ const url = require('url');
 const querystring = require('querystring');
 
 const PORT = 5000;
-const BASE_URL = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS}` : `http://localhost:${PORT}`;
+const BASE_URL = process.env.BASE_URL || 
+                 process.env.RENDER_EXTERNAL_URL || 
+                 (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS}` : 
+                 `http://localhost:${PORT}`);
 const REDIRECT_URI = `${BASE_URL}/callback`;
 
 // Store credentials temporarily (in production, use sessions or secure storage)
