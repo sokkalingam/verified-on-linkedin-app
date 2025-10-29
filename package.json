@@ -1,0 +1,16 @@
+{
+  "name": "verified-on-linkedin",
+  "version": "1.0.0",
+  "description": "LinkedIn Verification Application",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "keywords": ["linkedin", "verification", "oauth"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
