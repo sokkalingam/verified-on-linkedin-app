@@ -488,29 +488,79 @@ Type: ${type}">ⓘ</span></div>
     .tooltip-icon:hover {
       opacity: 1;
     }
-    .tooltip-icon::after {
-      content: attr(data-tooltip-text);
+    
+    /* Terminal-style tooltip */
+    #terminal-tooltip {
       position: fixed;
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      white-space: pre-line;
+      bottom: 20px;
+      right: 20px;
+      width: 380px;
+      background: #1e1e1e;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.2s ease;
+      transition: opacity 200ms ease-in-out;
       z-index: 10000;
-      font-weight: normal;
-      line-height: 1.6;
-      max-width: 300px;
-      text-align: left;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
+      overflow: hidden;
     }
-    .tooltip-icon:hover::after {
+    #terminal-tooltip.visible {
       opacity: 1;
+    }
+    .terminal-header {
+      background: #2d2d2d;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #3d3d3d;
+    }
+    .terminal-buttons {
+      display: flex;
+      gap: 6px;
+    }
+    .terminal-button {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .terminal-button.red {
+      background: #ff5f56;
+    }
+    .terminal-button.yellow {
+      background: #ffbd2e;
+    }
+    .terminal-button.green {
+      background: #27c93f;
+    }
+    .terminal-title {
+      color: #b0b0b0;
+      font-size: 12px;
+      font-weight: 500;
+      flex: 1;
+      text-align: center;
+      margin-right: 30px;
+    }
+    .terminal-content {
+      padding: 16px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #4af626;
+    }
+    .terminal-label {
+      color: #4af626;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .terminal-value {
+      color: #4af626;
+      margin-bottom: 12px;
+      word-break: break-word;
+      padding-left: 8px;
+    }
+    .terminal-value:last-child {
+      margin-bottom: 0;
     }
     .profile-picture-container {
       position: relative;
@@ -542,30 +592,6 @@ Type: ${type}">ⓘ</span></div>
       pointer-events: auto;
     }
     .picture-tooltip-icon:hover {
-      opacity: 1;
-    }
-    .picture-tooltip-icon::after {
-      content: attr(data-tooltip-text);
-      position: fixed;
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      white-space: pre-line;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s ease;
-      z-index: 10000;
-      font-weight: normal;
-      line-height: 1.6;
-      max-width: 300px;
-      text-align: left;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-    }
-    .picture-tooltip-icon:hover::after {
       opacity: 1;
     }
   </style>
@@ -716,6 +742,24 @@ Field: primaryCurrentPosition.startedOn">ⓘ</span>
     </div>
   </div>
   
+  <!-- Terminal-style tooltip -->
+  <div id="terminal-tooltip">
+    <div class="terminal-header">
+      <div class="terminal-buttons">
+        <div class="terminal-button red"></div>
+        <div class="terminal-button yellow"></div>
+        <div class="terminal-button green"></div>
+      </div>
+      <div class="terminal-title">API Field Information</div>
+    </div>
+    <div class="terminal-content" id="terminal-content">
+      <div class="terminal-label">API Endpoint:</div>
+      <div class="terminal-value" id="tooltip-api"></div>
+      <div class="terminal-label">Field Path:</div>
+      <div class="terminal-value" id="tooltip-field"></div>
+    </div>
+  </div>
+  
   <script>
     function toggleCollapsible(header) {
       const content = header.nextElementSibling;
@@ -740,6 +784,66 @@ Field: primaryCurrentPosition.startedOn">ⓘ</span>
       content.classList.toggle('open');
       chevron.classList.toggle('open');
     }
+    
+    // Terminal tooltip functionality
+    let tooltipTimeout;
+    const terminalTooltip = document.getElementById('terminal-tooltip');
+    const tooltipApi = document.getElementById('tooltip-api');
+    const tooltipField = document.getElementById('tooltip-field');
+    
+    function showTerminalTooltip(apiEndpoint, fieldPath) {
+      clearTimeout(tooltipTimeout);
+      
+      tooltipApi.textContent = apiEndpoint;
+      tooltipField.textContent = fieldPath;
+      
+      terminalTooltip.classList.add('visible');
+    }
+    
+    function hideTerminalTooltip() {
+      tooltipTimeout = setTimeout(() => {
+        terminalTooltip.classList.remove('visible');
+      }, 500);
+    }
+    
+    function parseTooltipData(tooltipText) {
+      const lines = tooltipText.split('\\n');
+      let apiEndpoint = '';
+      let fieldPath = '';
+      
+      lines.forEach(line => {
+        if (line.startsWith('API:')) {
+          apiEndpoint = line.replace('API:', '').trim();
+        } else if (line.startsWith('Field:')) {
+          if (fieldPath) {
+            fieldPath += '\\n' + line.replace('Field:', '').trim();
+          } else {
+            fieldPath = line.replace('Field:', '').trim();
+          }
+        } else if (line.startsWith('Type:')) {
+          fieldPath += '\\nType: ' + line.replace('Type:', '').trim();
+        }
+      });
+      
+      return { apiEndpoint, fieldPath };
+    }
+    
+    // Add event listeners to all tooltip icons
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipIcons = document.querySelectorAll('.tooltip-icon, .picture-tooltip-icon');
+      
+      tooltipIcons.forEach(icon => {
+        icon.addEventListener('mouseenter', (e) => {
+          const tooltipText = icon.getAttribute('data-tooltip-text');
+          const { apiEndpoint, fieldPath } = parseTooltipData(tooltipText);
+          showTerminalTooltip(apiEndpoint, fieldPath);
+        });
+        
+        icon.addEventListener('mouseleave', () => {
+          hideTerminalTooltip();
+        });
+      });
+    });
   </script>
 </body>
 </html>`;
