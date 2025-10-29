@@ -1,1 +1,1 @@
-# verified-on-linkedin-replit-app
+# verified-on-linkedin-app
