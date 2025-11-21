@@ -1,6 +1,6 @@
 const { REDIRECT_URI } = require('../config');
 
-function getHomePage(errorMessage = '', skipSetup = false) {
+function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite') {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -296,8 +296,8 @@ function getHomePage(errorMessage = '', skipSetup = false) {
         <div class="form-group">
           <label for="apiTier">Verified On LinkedIn API Product Tier <span class="required">*</span></label>
           <select id="apiTier" name="apiTier" required disabled>
-            <option value="lite" selected>Development / Lite</option>
-            <option value="plus">Plus</option>
+            <option value="lite" ${tier === 'lite' ? 'selected' : ''}>Development / Lite</option>
+            <option value="plus" ${tier === 'plus' ? 'selected' : ''}>Plus</option>
           </select>
           <div class="helper-text">Select your LinkedIn API product tier</div>
         </div>
