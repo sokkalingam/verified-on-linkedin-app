@@ -294,8 +294,7 @@ function getHomePage(errorMessage = '') {
         <div class="form-group">
           <label for="apiTier">Verified On LinkedIn API Product Tier <span class="required">*</span></label>
           <select id="apiTier" name="apiTier" required disabled>
-            <option value="development" selected>Development</option>
-            <option value="lite">Lite</option>
+            <option value="lite" selected>Development / Lite</option>
             <option value="plus">Plus</option>
           </select>
           <div class="helper-text">Select your LinkedIn API product tier</div>
