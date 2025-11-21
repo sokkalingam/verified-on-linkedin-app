@@ -1,8 +1,14 @@
 const PORT = 5000;
-const BASE_URL = process.env.BASE_URL || 
-                 process.env.RENDER_EXTERNAL_URL || 
-                 (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS}` : 
-                 `http://localhost:${PORT}`);
+
+const getBaseUrl = () => {
+  if (process.env.BASE_URL) return process.env.BASE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL;
+  if (process.env.REPLIT_DOMAINS) return `https://${process.env.REPLIT_DOMAINS}`;
+  return `http://localhost:${PORT}`;
+};
+
+const BASE_URL = getBaseUrl();
 const REDIRECT_URI = `${BASE_URL}/callback`;
 
 module.exports = {
