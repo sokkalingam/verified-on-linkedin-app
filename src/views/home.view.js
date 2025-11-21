@@ -1,6 +1,6 @@
 const { REDIRECT_URI } = require('../config');
 
-function getHomePage(errorMessage = '') {
+function getHomePage(errorMessage = '', skipSetup = false) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -243,6 +243,7 @@ function getHomePage(errorMessage = '') {
     
     ${errorMessage ? `<div class="error-message">⚠️ ${errorMessage}</div>` : ''}
     
+    ${!skipSetup ? `
     <div class="setup-section">
       <div class="setup-title">
         <span>⚙️</span>
@@ -271,8 +272,9 @@ function getHomePage(errorMessage = '') {
     <div id="step2DisabledMessage" class="step2-disabled-message">
       ⚠️ Please complete Step 1 above before entering your credentials
     </div>
+    ` : ''}
     
-    <div id="step2Container" class="step2-container">
+    <div id="step2Container" class="step2-container${skipSetup ? ' enabled' : ''}">
       <div class="setup-title" style="margin-bottom: 20px;">
         <span>🔑</span>
         <span>Step 2: Enter Your Credentials</span>
@@ -321,6 +323,8 @@ function getHomePage(errorMessage = '') {
   </div>
   
   <script>
+    const skipSetup = ${skipSetup};
+    
     function toggleStep2() {
       const checkbox = document.getElementById('setupComplete');
       const step2Container = document.getElementById('step2Container');
@@ -346,6 +350,21 @@ function getHomePage(errorMessage = '') {
         submitBtn.disabled = true;
       }
     }
+    
+    // Initialize form state on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      if (skipSetup) {
+        const clientId = document.getElementById('clientId');
+        const clientSecret = document.getElementById('clientSecret');
+        const apiTier = document.getElementById('apiTier');
+        const submitBtn = document.querySelector('.btn');
+        
+        clientId.disabled = false;
+        clientSecret.disabled = false;
+        apiTier.disabled = false;
+        submitBtn.disabled = false;
+      }
+    });
   </script>
 </body>
 </html>`;
