@@ -1,0 +1,16 @@
+{"timestamp":"2026-01-02T16:40:25.747Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"form_submission"}
+{"timestamp":"2026-01-02T16:40:26.205Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"oauth_success"}
+{"timestamp":"2026-01-02T16:40:27.265Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:44:11.751Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:44:18.466Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:49:53.732Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:49:55.652Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:49:57.653Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:50:00.257Z","clientId":"78cnyfo6dv45o4","tier":"lite","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:51:19.712Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"form_submission"}
+{"timestamp":"2026-01-02T16:51:20.102Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"oauth_success"}
+{"timestamp":"2026-01-02T16:51:20.943Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:51:37.713Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:51:40.626Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:51:42.834Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"api_success"}
+{"timestamp":"2026-01-02T16:51:46.447Z","clientId":"789ffrulq2lnh8","tier":"plus","eventType":"api_success"}

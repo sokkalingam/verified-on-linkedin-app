@@ -4,6 +4,7 @@ const { PORT, BASE_URL, REDIRECT_URI } = require('./config');
 const { handleHome } = require('./routes/home.route');
 const { handleAuth, handleCallback } = require('./routes/auth.route');
 const { handleMemberProfile } = require('./routes/profile.route');
+const { handleDashboard } = require('./routes/dashboard.route');
 
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
@@ -32,6 +33,11 @@ const server = http.createServer(async (req, res) => {
     // Member Profile page - makes fresh API calls on each load
     else if (pathname === '/memberProfile') {
       await handleMemberProfile(req, res, parsedUrl);
+    }
+    
+    // Dashboard page
+    else if (pathname === '/dashboard') {
+      handleDashboard(req, res, parsedUrl);
     }
     
     // 404

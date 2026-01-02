@@ -4,6 +4,7 @@ const { createSession, getSession, deleteSession } = require('../services/sessio
 const { exchangeCodeForToken } = require('../services/linkedin.service');
 const { getHomePage } = require('../views/home.view');
 const { getErrorPage } = require('../views/error.view');
+const { logUsage } = require('../services/usage.service');
 
 function handleAuth(req, res) {
   if (req.method === 'POST') {
@@ -21,6 +22,9 @@ function handleAuth(req, res) {
         res.end(getHomePage('Both Client ID and Client Secret are required'));
         return;
       }
+      
+      // Log form submission
+      logUsage(clientId, apiTier, 'form_submission');
       
       // Determine scopes based on API tier
       // Development and Lite use the same scopes
@@ -96,10 +100,9 @@ async function handleCallback(req, res, parsedUrl) {
     console.log('📡 Exchanging code for access token...');
     const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret);
     console.log('✅ Access token obtained');
-    console.log('\n' + '='.repeat(60));
-    console.log('ACCESS TOKEN:');
-    console.log(accessToken);
-    console.log('='.repeat(60) + '\n');
+    
+    // Log OAuth success
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_success');
     
     // Redirect to member profile with access token, client ID, and scopes for tutorial
     res.writeHead(302, { 
@@ -114,6 +117,10 @@ async function handleCallback(req, res, parsedUrl) {
     
   } catch (error) {
     console.error('❌ Error:', error.message);
+    
+    // Log OAuth failure
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure');
+    
     res.writeHead(500, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error.message));
   }
