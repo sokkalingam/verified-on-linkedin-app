@@ -72,6 +72,12 @@ async function handleCallback(req, res, parsedUrl) {
   const error = parsedUrl.query.error;
   
   if (error) {
+    // Retrieve credentials from session to log the failure
+    const credentials = getSession(sessionId);
+    if (credentials) {
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure');
+    }
+    
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error));
     console.error('❌ Authentication error:', error);
@@ -79,6 +85,12 @@ async function handleCallback(req, res, parsedUrl) {
   }
   
   if (!code) {
+    // Retrieve credentials from session to log the failure
+    const credentials = getSession(sessionId);
+    if (credentials) {
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure');
+    }
+    
     res.writeHead(400, { 'Content-Type': 'text/html' });
     res.end(getErrorPage('No authorization code received'));
     return;
@@ -88,6 +100,7 @@ async function handleCallback(req, res, parsedUrl) {
   const credentials = getSession(sessionId);
   
   if (!credentials) {
+    // We can't log the failure without credentials, but we can still handle the error
     res.writeHead(400, { 'Content-Type': 'text/html' });
     res.end(getErrorPage('Session expired or invalid. Please start again.'));
     return;
