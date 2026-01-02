@@ -23,8 +23,10 @@ function handleAuth(req, res) {
         return;
       }
       
-      // Log form submission
-      logUsage(clientId, apiTier, 'form_submission');
+      // Log form submission (non-blocking)
+      logUsage(clientId, apiTier, 'form_submission').catch(err => 
+        console.error('❌ Failed to log form submission:', err.message)
+      );
       
       // Determine scopes based on API tier
       // Development and Lite use the same scopes
@@ -75,7 +77,9 @@ async function handleCallback(req, res, parsedUrl) {
     // Retrieve credentials from session to log the failure
     const credentials = getSession(sessionId);
     if (credentials) {
-      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure');
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+        console.error('❌ Failed to log oauth_failure:', err.message)
+      );
     }
     
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -88,7 +92,9 @@ async function handleCallback(req, res, parsedUrl) {
     // Retrieve credentials from session to log the failure
     const credentials = getSession(sessionId);
     if (credentials) {
-      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure');
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+        console.error('❌ Failed to log oauth_failure:', err.message)
+      );
     }
     
     res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -114,8 +120,10 @@ async function handleCallback(req, res, parsedUrl) {
     const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret);
     console.log('✅ Access token obtained');
     
-    // Log OAuth success
-    logUsage(credentials.clientId, credentials.apiTier, 'oauth_success');
+    // Log OAuth success (non-blocking)
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_success').catch(err => 
+      console.error('❌ Failed to log oauth_success:', err.message)
+    );
     
     // Redirect to member profile with access token, client ID, and scopes for tutorial
     res.writeHead(302, { 
@@ -131,8 +139,10 @@ async function handleCallback(req, res, parsedUrl) {
   } catch (error) {
     console.error('❌ Error:', error.message);
     
-    // Log OAuth failure
-    logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure');
+    // Log OAuth failure (non-blocking)
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+      console.error('❌ Failed to log oauth_failure:', err.message)
+    );
     
     res.writeHead(500, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error.message));

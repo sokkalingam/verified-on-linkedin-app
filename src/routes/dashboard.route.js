@@ -5,16 +5,22 @@ const { getUsageStats } = require('../services/usage.service');
 const DASHBOARD_USERNAME = 'tg-fed';
 const DASHBOARD_PASSWORD = 'tgfedvoliappdash';
 
-function handleDashboard(req, res, parsedUrl) {
+async function handleDashboard(req, res, parsedUrl) {
   if (req.method === 'GET') {
     // Check if user is authenticated via cookie
     const cookies = parseCookies(req.headers.cookie);
     
     if (cookies.dashboardAuth === 'authenticated') {
       // User is authenticated, show dashboard
-      const stats = getUsageStats();
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(getDashboardPage(stats));
+      try {
+        const stats = await getUsageStats();
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(getDashboardPage(stats));
+      } catch (error) {
+        console.error('❌ Error fetching stats:', error.message);
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end('<h1>Error loading dashboard</h1><p>' + error.message + '</p>');
+      }
     } else {
       // User is not authenticated, show login form
       res.writeHead(200, { 'Content-Type': 'text/html' });

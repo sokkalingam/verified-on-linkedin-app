@@ -47,7 +47,9 @@ async function handleMemberProfile(req, res, parsedUrl) {
     
     // Log successful API call - get tier from scopes (if available, default to 'lite')
     const tier = scopes.includes('r_verify_details') ? 'plus' : 'lite';
-    logUsage(clientId, tier, 'api_success');
+    logUsage(clientId, tier, 'api_success').catch(err => 
+      console.error('❌ Failed to log api_success:', err.message)
+    );
     
     console.log('\n✅ Verification complete!\n');
     
@@ -56,7 +58,9 @@ async function handleMemberProfile(req, res, parsedUrl) {
     
     // Log failed API call - get tier from scopes (if available, default to 'lite')
     const tier = scopes.includes('r_verify_details') ? 'plus' : 'lite';
-    logUsage(clientId, tier, 'api_failure');
+    logUsage(clientId, tier, 'api_failure').catch(err => 
+      console.error('❌ Failed to log api_failure:', err.message)
+    );
     
     res.writeHead(500, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error.message));

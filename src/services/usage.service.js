@@ -1,96 +1,116 @@
-const fs = require('fs');
-const path = require('path');
+// Supabase Configuration
+// Check multiple environment variable names for compatibility
+const SUPABASE_URL = 
+  process.env.SUPABASE_URL || 
+  process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-const DATA_DIR = path.join(__dirname, '../../data');
-const USAGE_FILE = path.join(DATA_DIR, 'usage.ndjson');
+const SUPABASE_ANON_KEY = 
+  process.env.SUPABASE_ANON_KEY || 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-// Queue for handling concurrent writes
-const writeQueue = [];
-let isWriting = false;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// Ensure data directory exists
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+// Determine which table to use based on environment
+const USAGE_TABLE = NODE_ENV === 'production' ? 'usage_logs' : 'usage_logs_local';
+
+let supabaseClient = null;
+
+// Initialize Supabase client
+async function initializeDatabase() {
+  if (!supabaseClient) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error('❌ SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required!');
+      console.error('   Please set these in your .env.local or Vercel environment variables');
+      process.exit(1);
+    }
+    
+    try {
+      const { createClient } = require('@supabase/supabase-js');
+      supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      
+      // Test connection by querying the table schema
+      const { data, error } = await supabaseClient
+        .from(USAGE_TABLE)
+        .select('*')
+        .limit(1);
+      
+      if (error) {
+        console.error('❌ Failed to connect to Supabase table:', error.message);
+        console.error('   Table:', USAGE_TABLE);
+        console.error('   Error details:', error);
+        process.exit(1);
+      }
+      
+      const env = NODE_ENV === 'production' ? '🔴 PRODUCTION' : '🟢 LOCAL DEV';
+      console.log(`✅ Connected to Supabase for usage tracking [${env}]`);
+      console.log(`   Table: ${USAGE_TABLE}`);
+      console.log(`   URL: ${SUPABASE_URL}`);
+    } catch (error) {
+      console.error('❌ Failed to initialize Supabase:', error.message);
+      console.error('   Stack:', error.stack);
+      process.exit(1);
+    }
   }
 }
 
-// Initialize usage file if it doesn't exist
-function initializeUsageFile() {
-  ensureDataDir();
-  if (!fs.existsSync(USAGE_FILE)) {
-    fs.writeFileSync(USAGE_FILE, '');
-  }
-}
-
-// Process write queue - handles concurrent writes safely
-function processWriteQueue() {
-  if (isWriting || writeQueue.length === 0) {
+// Log usage event to Supabase
+// eventType: 'form_submission', 'oauth_success', 'oauth_failure', 'api_success', 'api_failure'
+async function logUsage(clientId, tier, eventType) {
+  if (!supabaseClient) {
+    console.error('❌ Supabase client not initialized. Call initializeDatabase() first.');
     return;
   }
   
-  isWriting = true;
-  const entry = writeQueue.shift();
-  
-  try {
-    // Append to file (atomic operation)
-    fs.appendFileSync(USAGE_FILE, JSON.stringify(entry) + '\n');
-  } catch (error) {
-    console.error('❌ Error writing to usage log:', error.message);
-  }
-  
-  isWriting = false;
-  
-  // Process next item in queue
-  if (writeQueue.length > 0) {
-    setImmediate(processWriteQueue);
-  }
-}
-
-// Log usage event (queued for safe concurrent handling)
-// eventType: 'form_submission', 'oauth_success', 'oauth_failure', 'api_success', 'api_failure'
-function logUsage(clientId, tier, eventType) {
-  initializeUsageFile();
-  
+  // Use lowercase column names to match Supabase table schema
   const entry = {
     timestamp: new Date().toISOString(),
-    clientId: clientId || 'unknown',
+    clientid: clientId || 'unknown',
     tier: tier || 'unknown',
-    eventType: eventType
+    eventtype: eventType
   };
   
-  // Add to queue
-  writeQueue.push(entry);
-  
-  // Start processing if not already processing
-  processWriteQueue();
+  try {
+    const { error } = await supabaseClient
+      .from(USAGE_TABLE)
+      .insert([entry]);
+    
+    if (error) {
+      console.error('❌ Error writing to Supabase:', error.message);
+    }
+  } catch (error) {
+    console.error('❌ Error writing to Supabase:', error.message);
+  }
 }
 
-// Get all usage logs (parse NDJSON format)
-function getAllUsageLogs() {
-  initializeUsageFile();
+// Get all usage logs from Supabase
+async function getAllUsageLogs() {
+  if (!supabaseClient) {
+    console.error('❌ Supabase client not initialized. Call initializeDatabase() first.');
+    return [];
+  }
   
   try {
-    const data = fs.readFileSync(USAGE_FILE, 'utf8');
-    if (!data.trim()) {
+    const { data, error } = await supabaseClient
+      .from(USAGE_TABLE)
+      .select('*')
+      .order('timestamp', { ascending: false });
+    
+    if (error) {
+      console.error('❌ Error reading from Supabase:', error.message);
       return [];
     }
     
-    // Parse newline-delimited JSON
-    return data
-      .trim()
-      .split('\n')
-      .filter(line => line.trim())
-      .map(line => JSON.parse(line));
+    return data || [];
   } catch (error) {
-    console.error('❌ Error reading usage logs:', error.message);
+    console.error('❌ Error reading from Supabase:', error.message);
     return [];
   }
 }
 
 // Get usage statistics
-function getUsageStats() {
-  const logs = getAllUsageLogs();
+async function getUsageStats() {
+  const logs = await getAllUsageLogs();
   
   if (logs.length === 0) {
     return {
@@ -120,7 +140,10 @@ function getUsageStats() {
   
   // Count events by type
   logs.forEach(log => {
-    const eventType = log.eventType;
+    // Use lowercase column names to match Supabase schema
+    const eventType = log.eventtype;
+    const clientId = log.clientid;
+    const tier = log.tier;
     
     // Count overall events
     if (eventType === 'form_submission') {
@@ -136,8 +159,8 @@ function getUsageStats() {
     }
     
     // Count by tier
-    if (!stats.byTier[log.tier]) {
-      stats.byTier[log.tier] = {
+    if (!stats.byTier[tier]) {
+      stats.byTier[tier] = {
         formSubmissions: 0,
         oauthSuccess: 0,
         oauthFailure: 0,
@@ -146,20 +169,20 @@ function getUsageStats() {
       };
     }
     if (eventType === 'form_submission') {
-      stats.byTier[log.tier].formSubmissions++;
+      stats.byTier[tier].formSubmissions++;
     } else if (eventType === 'oauth_success') {
-      stats.byTier[log.tier].oauthSuccess++;
+      stats.byTier[tier].oauthSuccess++;
     } else if (eventType === 'oauth_failure') {
-      stats.byTier[log.tier].oauthFailure++;
+      stats.byTier[tier].oauthFailure++;
     } else if (eventType === 'api_success') {
-      stats.byTier[log.tier].apiSuccess++;
+      stats.byTier[tier].apiSuccess++;
     } else if (eventType === 'api_failure') {
-      stats.byTier[log.tier].apiFailure++;
+      stats.byTier[tier].apiFailure++;
     }
     
     // Count by clientId
-    if (!stats.byClientId[log.clientId]) {
-      stats.byClientId[log.clientId] = {
+    if (!stats.byClientId[clientId]) {
+      stats.byClientId[clientId] = {
         formSubmissions: 0,
         oauthSuccess: 0,
         oauthFailure: 0,
@@ -168,15 +191,15 @@ function getUsageStats() {
       };
     }
     if (eventType === 'form_submission') {
-      stats.byClientId[log.clientId].formSubmissions++;
+      stats.byClientId[clientId].formSubmissions++;
     } else if (eventType === 'oauth_success') {
-      stats.byClientId[log.clientId].oauthSuccess++;
+      stats.byClientId[clientId].oauthSuccess++;
     } else if (eventType === 'oauth_failure') {
-      stats.byClientId[log.clientId].oauthFailure++;
+      stats.byClientId[clientId].oauthFailure++;
     } else if (eventType === 'api_success') {
-      stats.byClientId[log.clientId].apiSuccess++;
+      stats.byClientId[clientId].apiSuccess++;
     } else if (eventType === 'api_failure') {
-      stats.byClientId[log.clientId].apiFailure++;
+      stats.byClientId[clientId].apiFailure++;
     }
     
     // Daily breakdown
@@ -219,5 +242,6 @@ function getUsageStats() {
 module.exports = {
   logUsage,
   getAllUsageLogs,
-  getUsageStats
+  getUsageStats,
+  initializeDatabase
 };
