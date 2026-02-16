@@ -2,6 +2,7 @@ const { fetchVerificationReport, fetchProfileInfo } = require('../services/linke
 const { getProfilePage } = require('../views/profile.view');
 const { buildTutorialSteps } = require('../views/tutorial.view');
 const { getErrorPage } = require('../views/error.view');
+const { logUsage } = require('../services/usage.service');
 
 async function handleMemberProfile(req, res, parsedUrl) {
   const accessToken = parsedUrl.query.token;
@@ -44,10 +45,23 @@ async function handleMemberProfile(req, res, parsedUrl) {
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(getProfilePage(profileInfo, verificationReport, tutorialHTML));
     
+    // Log successful API call - get tier from scopes (if available, default to 'lite')
+    const tier = scopes.includes('r_verify_details') ? 'plus' : 'lite';
+    logUsage(clientId, tier, 'api_success').catch(err => 
+      console.error('❌ Failed to log api_success:', err.message)
+    );
+    
     console.log('\n✅ Verification complete!\n');
     
   } catch (error) {
     console.error('❌ Error:', error.message);
+    
+    // Log failed API call - get tier from scopes (if available, default to 'lite')
+    const tier = scopes.includes('r_verify_details') ? 'plus' : 'lite';
+    logUsage(clientId, tier, 'api_failure').catch(err => 
+      console.error('❌ Failed to log api_failure:', err.message)
+    );
+    
     res.writeHead(500, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error.message));
   }

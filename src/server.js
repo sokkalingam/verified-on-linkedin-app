@@ -1,9 +1,14 @@
+// Load environment variables from .env.local
+require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
+
 const http = require('http');
 const url = require('url');
 const { PORT, BASE_URL, REDIRECT_URI } = require('./config');
 const { handleHome } = require('./routes/home.route');
 const { handleAuth, handleCallback } = require('./routes/auth.route');
 const { handleMemberProfile } = require('./routes/profile.route');
+const { handleDashboard } = require('./routes/dashboard.route');
+const { initializeDatabase } = require('./services/usage.service');
 
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
@@ -34,6 +39,11 @@ const server = http.createServer(async (req, res) => {
       await handleMemberProfile(req, res, parsedUrl);
     }
     
+    // Dashboard page
+    else if (pathname === '/dashboard') {
+      await handleDashboard(req, res, parsedUrl);
+    }
+    
     // 404
     else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -53,6 +63,12 @@ console.log(`🚀 Server starting on ${BASE_URL}`);
 console.log(`📖 Open ${BASE_URL} in your browser to begin.`);
 console.log(`\n⚠️  Important: Update your LinkedIn app's redirect URI to:`);
 console.log(`   ${REDIRECT_URI}\n`);
+
+// Initialize database connection if configured
+initializeDatabase().catch(err => {
+  console.error('⚠️  Database initialization failed:', err.message);
+  console.log('Falling back to file-based storage');
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running at ${BASE_URL}/\n`);

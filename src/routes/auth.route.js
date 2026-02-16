@@ -4,6 +4,7 @@ const { createSession, getSession, deleteSession } = require('../services/sessio
 const { exchangeCodeForToken } = require('../services/linkedin.service');
 const { getHomePage } = require('../views/home.view');
 const { getErrorPage } = require('../views/error.view');
+const { logUsage } = require('../services/usage.service');
 
 function handleAuth(req, res) {
   if (req.method === 'POST') {
@@ -21,6 +22,11 @@ function handleAuth(req, res) {
         res.end(getHomePage('Both Client ID and Client Secret are required'));
         return;
       }
+      
+      // Log form submission (non-blocking)
+      logUsage(clientId, apiTier, 'form_submission').catch(err => 
+        console.error('❌ Failed to log form submission:', err.message)
+      );
       
       // Determine scopes based on API tier
       // Development and Lite use the same scopes
@@ -68,6 +74,14 @@ async function handleCallback(req, res, parsedUrl) {
   const error = parsedUrl.query.error;
   
   if (error) {
+    // Retrieve credentials from session to log the failure
+    const credentials = getSession(sessionId);
+    if (credentials) {
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+        console.error('❌ Failed to log oauth_failure:', err.message)
+      );
+    }
+    
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error));
     console.error('❌ Authentication error:', error);
@@ -75,6 +89,14 @@ async function handleCallback(req, res, parsedUrl) {
   }
   
   if (!code) {
+    // Retrieve credentials from session to log the failure
+    const credentials = getSession(sessionId);
+    if (credentials) {
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+        console.error('❌ Failed to log oauth_failure:', err.message)
+      );
+    }
+    
     res.writeHead(400, { 'Content-Type': 'text/html' });
     res.end(getErrorPage('No authorization code received'));
     return;
@@ -84,6 +106,7 @@ async function handleCallback(req, res, parsedUrl) {
   const credentials = getSession(sessionId);
   
   if (!credentials) {
+    // We can't log the failure without credentials, but we can still handle the error
     res.writeHead(400, { 'Content-Type': 'text/html' });
     res.end(getErrorPage('Session expired or invalid. Please start again.'));
     return;
@@ -96,10 +119,11 @@ async function handleCallback(req, res, parsedUrl) {
     console.log('📡 Exchanging code for access token...');
     const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret);
     console.log('✅ Access token obtained');
-    console.log('\n' + '='.repeat(60));
-    console.log('ACCESS TOKEN:');
-    console.log(accessToken);
-    console.log('='.repeat(60) + '\n');
+    
+    // Log OAuth success (non-blocking)
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_success').catch(err => 
+      console.error('❌ Failed to log oauth_success:', err.message)
+    );
     
     // Redirect to member profile with access token, client ID, and scopes for tutorial
     res.writeHead(302, { 
@@ -114,6 +138,12 @@ async function handleCallback(req, res, parsedUrl) {
     
   } catch (error) {
     console.error('❌ Error:', error.message);
+    
+    // Log OAuth failure (non-blocking)
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+      console.error('❌ Failed to log oauth_failure:', err.message)
+    );
+    
     res.writeHead(500, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error.message));
   }
