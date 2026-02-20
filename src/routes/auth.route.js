@@ -118,7 +118,8 @@ async function handleCallback(req, res, parsedUrl) {
   }
   
   console.log('✅ Authorization code received');
-  
+  console.log('🔑 Session credentials.redirectUri:', credentials.redirectUri);
+
   try {
     // Exchange code for access token
     console.log('📡 Exchanging code for access token...');
