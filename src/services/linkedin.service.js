@@ -22,18 +22,8 @@ async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri, c
     }
   };
 
-  // LinkedIn's auth servers are eventually consistent — a valid token exchange
-  // request occasionally returns 400 on first attempt then succeeds on retry.
-  // Retry once after a short delay to handle this gracefully within one request.
-  try {
-    const response = await httpsRequest(options, body);
-    return response.access_token;
-  } catch (err) {
-    if (!err.message.startsWith('HTTP 400')) throw err;
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const response = await httpsRequest(options, body);
-    return response.access_token;
-  }
+  const response = await httpsRequest(options, body);
+  return response.access_token;
 }
 
 async function fetchVerificationReport(accessToken) {

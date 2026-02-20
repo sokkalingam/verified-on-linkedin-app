@@ -6,6 +6,7 @@ const { getHomePage } = require('../views/home.view');
 const { getErrorPage } = require('../views/error.view');
 const { logUsage } = require('../services/usage.service');
 const { getRedirectUri } = require('../utils/redirect-uri.util');
+const { getSession, createSession } = require('../services/session.service');
 
 function handleAuth(req, res) {
   if (req.method === 'POST') {
@@ -122,6 +123,19 @@ async function handleCallback(req, res, parsedUrl) {
   console.log('✅ Authorization code received');
   console.log('🔑 Decoded redirectUri from state:', credentials.redirectUri);
 
+  // Deduplication guard: Vercel may invoke the Lambda twice for the same request
+  // if the first invocation is slow (e.g., due to LinkedIn API latency). The second
+  // invocation would fail because the auth code is single-use. Check if this code
+  // was already successfully processed and reuse the cached redirect URL if so.
+  const codeHash = `code:${crypto.createHash('sha256').update(code).digest('hex')}`;
+  const alreadyProcessed = await getSession(codeHash).catch(() => null);
+  if (alreadyProcessed) {
+    console.log('⚠️ Duplicate callback detected — reusing cached profile URL');
+    res.writeHead(302, { 'Location': alreadyProcessed.profileUrl });
+    res.end();
+    return;
+  }
+
   try {
     console.log('📡 Exchanging code for access token...');
     const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri, credentials.codeVerifier);
@@ -132,15 +146,30 @@ async function handleCallback(req, res, parsedUrl) {
       console.error('❌ Failed to log oauth_success:', err.message)
     );
 
-    res.writeHead(302, {
-      'Location': `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`
-    });
+    const profileUrl = `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`;
+
+    // Cache the profile URL so any duplicate callback invocation can reuse it
+    createSession(codeHash, { profileUrl }).catch(() => null);
+
+    res.writeHead(302, { 'Location': profileUrl });
     res.end();
 
     console.log('🔄 Redirecting to member profile page...');
 
   } catch (err) {
     console.error('❌ Error:', err.message);
+
+    // If LinkedIn rejected the code (400), another invocation may have already
+    // consumed it. Check the cache — if found, reuse the redirect rather than erroring.
+    if (err.message.startsWith('HTTP 400')) {
+      const cached = await getSession(codeHash).catch(() => null);
+      if (cached) {
+        console.log('⚠️ Code consumed by parallel invocation — redirecting to cached profile URL');
+        res.writeHead(302, { 'Location': cached.profileUrl });
+        res.end();
+        return;
+      }
+    }
 
     logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(e =>
       console.error('❌ Failed to log oauth_failure:', e.message)
