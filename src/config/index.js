@@ -9,10 +9,8 @@ const getBaseUrl = () => {
 };
 
 const BASE_URL = getBaseUrl();
-const REDIRECT_URI = `${BASE_URL}/callback`;
 
 module.exports = {
   PORT,
-  BASE_URL,
-  REDIRECT_URI
+  BASE_URL
 };
