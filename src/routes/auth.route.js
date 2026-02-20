@@ -1,5 +1,5 @@
 const querystring = require('querystring');
-const { createSession, getSession, deleteSession } = require('../services/session.service');
+const { encodeState, decodeState } = require('../utils/session-state.util');
 const { exchangeCodeForToken } = require('../services/linkedin.service');
 const { getHomePage } = require('../views/home.view');
 const { getErrorPage } = require('../views/error.view');
@@ -37,16 +37,18 @@ function handleAuth(req, res) {
           scopes = 'r_verify r_profile_basicinfo';
         }
 
-        // Generate a session ID and persist credentials + redirectUri
-        const sessionId = Math.random().toString(36).substring(7);
         const redirectUri = getRedirectUri(req);
-        await createSession(sessionId, { clientId, clientSecret, apiTier, scopes, redirectUri });
+
+        // Encode all session data into the OAuth state parameter.
+        // This avoids any server-side session storage and works reliably
+        // across Vercel Lambda cold starts and multiple instances.
+        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri });
 
         console.log('🔐 Using Client ID:', clientId);
         console.log('🎯 API Tier:', apiTier.toUpperCase());
         console.log('🔐 Redirecting to LinkedIn OAuth...');
 
-        const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${sessionId}&scope=${encodeURIComponent(scopes)}`;
+        const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scopes)}`;
 
         console.log('\n📍 FULL OAUTH URL:');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -57,7 +59,6 @@ function handleAuth(req, res) {
         console.log('   • client_id:', clientId);
         console.log('   • redirect_uri:', redirectUri);
         console.log('   • scope:', scopes);
-        console.log('   • state:', sessionId + '\n');
 
         res.writeHead(302, { 'Location': authUrl });
         res.end();
@@ -75,64 +76,55 @@ function handleAuth(req, res) {
 
 async function handleCallback(req, res, parsedUrl) {
   const code = parsedUrl.query.code;
-  const sessionId = parsedUrl.query.state;
+  const rawState = parsedUrl.query.state;
   const error = parsedUrl.query.error;
-  
+
   if (error) {
-    // Retrieve credentials from session to log the failure
-    const credentials = await getSession(sessionId);
+    const credentials = decodeState(rawState);
     if (credentials) {
-      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err =>
         console.error('❌ Failed to log oauth_failure:', err.message)
       );
     }
-    
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error));
     console.error('❌ Authentication error:', error);
     return;
   }
-  
+
   if (!code) {
-    // Retrieve credentials from session to log the failure
-    const credentials = await getSession(sessionId);
+    const credentials = decodeState(rawState);
     if (credentials) {
-      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err =>
         console.error('❌ Failed to log oauth_failure:', err.message)
       );
     }
-    
     res.writeHead(400, { 'Content-Type': 'text/html' });
     res.end(getErrorPage('No authorization code received'));
     return;
   }
-  
-  // Retrieve credentials from session
-  const credentials = await getSession(sessionId);
-  
+
+  // Decode credentials from the signed state parameter
+  const credentials = decodeState(rawState);
+
   if (!credentials) {
     res.writeHead(400, { 'Content-Type': 'text/html' });
-    res.end(getErrorPage('This OAuth flow has already completed or the session expired. Please start again from the home page.'));
+    res.end(getErrorPage('Invalid or expired session. Please start again.'));
     return;
   }
-  
+
   console.log('✅ Authorization code received');
-  console.log('🔑 Session credentials.redirectUri:', credentials.redirectUri);
+  console.log('🔑 Decoded redirectUri from state:', credentials.redirectUri);
 
   try {
-    // Exchange code for access token
     console.log('📡 Exchanging code for access token...');
     const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri);
     console.log('✅ Access token obtained');
-    
+
     // Log OAuth success (non-blocking)
-    logUsage(credentials.clientId, credentials.apiTier, 'oauth_success').catch(err => 
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_success').catch(err =>
       console.error('❌ Failed to log oauth_success:', err.message)
     );
-    
-    // Redirect to member profile with access token, client ID, and scopes for tutorial
-    // Clean up session before redirect
-    await deleteSession(sessionId);
 
     res.writeHead(302, {
       'Location': `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`
@@ -140,17 +132,16 @@ async function handleCallback(req, res, parsedUrl) {
     res.end();
 
     console.log('🔄 Redirecting to member profile page...');
-    
-  } catch (error) {
-    console.error('❌ Error:', error.message);
-    
-    // Log OAuth failure (non-blocking)
-    logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
-      console.error('❌ Failed to log oauth_failure:', err.message)
+
+  } catch (err) {
+    console.error('❌ Error:', err.message);
+
+    logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(e =>
+      console.error('❌ Failed to log oauth_failure:', e.message)
     );
-    
+
     res.writeHead(500, { 'Content-Type': 'text/html' });
-    res.end(getErrorPage(error.message));
+    res.end(getErrorPage(err.message));
   }
 }
 
