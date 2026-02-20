@@ -1,17 +1,16 @@
 const { httpsRequest } = require('../utils/https.util');
 
-async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
+async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri, codeVerifier) {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code: code,
     client_id: clientId,
     client_secret: clientSecret,
-    redirect_uri: redirectUri
+    redirect_uri: redirectUri,
+    ...(codeVerifier && { code_verifier: codeVerifier })
   });
 
   const body = params.toString();
-  const maskedBody = body.replace(/client_secret=[^&]+/, 'client_secret=***');
-  console.log('📤 Token exchange body:', maskedBody);
 
   const options = {
     hostname: 'www.linkedin.com',

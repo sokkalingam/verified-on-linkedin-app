@@ -1,4 +1,5 @@
 const querystring = require('querystring');
+const crypto = require('crypto');
 const { encodeState, decodeState } = require('../utils/session-state.util');
 const { exchangeCodeForToken } = require('../services/linkedin.service');
 const { getHomePage } = require('../views/home.view');
@@ -39,16 +40,21 @@ function handleAuth(req, res) {
 
         const redirectUri = getRedirectUri(req);
 
+        // Generate PKCE code verifier and challenge (RFC 7636).
+        // LinkedIn requires PKCE for verification-scoped OAuth flows.
+        const codeVerifier = crypto.randomBytes(32).toString('base64url');
+        const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+
         // Encode all session data into the OAuth state parameter.
         // This avoids any server-side session storage and works reliably
         // across Vercel Lambda cold starts and multiple instances.
-        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri });
+        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri, codeVerifier });
 
         console.log('🔐 Using Client ID:', clientId);
         console.log('🎯 API Tier:', apiTier.toUpperCase());
         console.log('🔐 Redirecting to LinkedIn OAuth...');
 
-        const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scopes)}`;
+        const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scopes)}&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
 
         console.log('\n📍 FULL OAUTH URL:');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -118,7 +124,7 @@ async function handleCallback(req, res, parsedUrl) {
 
   try {
     console.log('📡 Exchanging code for access token...');
-    const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri);
+    const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri, credentials.codeVerifier);
     console.log('✅ Access token obtained');
 
     // Log OAuth success (non-blocking)
