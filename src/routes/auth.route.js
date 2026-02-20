@@ -41,21 +41,16 @@ function handleAuth(req, res) {
 
         const redirectUri = getRedirectUri(req);
 
-        // Generate PKCE code verifier and challenge (RFC 7636).
-        // LinkedIn requires PKCE for verification-scoped OAuth flows.
-        const codeVerifier = crypto.randomBytes(32).toString('base64url');
-        const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
-
         // Encode all session data into the OAuth state parameter.
         // This avoids any server-side session storage and works reliably
         // across Vercel Lambda cold starts and multiple instances.
-        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri, codeVerifier });
+        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri });
 
         console.log('🔐 Using Client ID:', clientId);
         console.log('🎯 API Tier:', apiTier.toUpperCase());
         console.log('🔐 Redirecting to LinkedIn OAuth...');
 
-        const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scopes)}&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+        const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scopes)}`;
 
         console.log('\n📍 FULL OAUTH URL:');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
