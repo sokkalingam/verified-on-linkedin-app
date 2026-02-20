@@ -10,6 +10,8 @@ async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
   });
 
   const body = params.toString();
+  const maskedBody = body.replace(/client_secret=[^&]+/, 'client_secret=***');
+  console.log('📤 Token exchange body:', maskedBody);
 
   const options = {
     hostname: 'www.linkedin.com',
