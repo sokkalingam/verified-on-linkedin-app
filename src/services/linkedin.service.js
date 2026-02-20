@@ -10,8 +10,6 @@ async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
   });
 
   const body = params.toString();
-  console.log('🔗 Token exchange redirect_uri:', redirectUri);
-  console.log('🌍 VERCEL_URL:', process.env.VERCEL_URL, '| VERCEL_ENV:', process.env.VERCEL_ENV);
 
   const options = {
     hostname: 'www.linkedin.com',
