@@ -12,6 +12,12 @@ let supabaseClient = null;
 // Fallback for local dev without Supabase configured
 const memoryStore = {};
 
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn('⚠️  session.service: SUPABASE_URL/ANON_KEY not set — using in-memory fallback (sessions will not survive cold starts)');
+} else {
+  console.log('✅ session.service: Supabase configured, sessions will be stored in DB');
+}
+
 function getClient() {
   if (supabaseClient) return supabaseClient;
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
