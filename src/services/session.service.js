@@ -1,20 +1,64 @@
-// Store credentials temporarily (in production, use sessions or secure storage)
-let sessionStore = {};
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-function createSession(sessionId, data) {
-  sessionStore[sessionId] = data;
+const SESSION_TABLE = 'sessions';
+const SESSION_TTL_MINUTES = 10;
+
+let supabaseClient = null;
+
+// Fallback for local dev without Supabase configured
+const memoryStore = {};
+
+function getClient() {
+  if (supabaseClient) return supabaseClient;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  const { createClient } = require('@supabase/supabase-js');
+  supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return supabaseClient;
 }
 
-function getSession(sessionId) {
-  return sessionStore[sessionId];
+function expiryTimestamp() {
+  return new Date(Date.now() - SESSION_TTL_MINUTES * 60 * 1000).toISOString();
 }
 
-function deleteSession(sessionId) {
-  delete sessionStore[sessionId];
+async function createSession(sessionId, data) {
+  const client = getClient();
+  if (!client) {
+    memoryStore[sessionId] = data;
+    return;
+  }
+  // Lazy cleanup: remove any expired sessions before inserting a new one
+  await client.from(SESSION_TABLE).delete().lt('created_at', expiryTimestamp());
+
+  const { error } = await client.from(SESSION_TABLE).insert([{ session_id: sessionId, data }]);
+  if (error) throw new Error(`Failed to create session: ${error.message}`);
 }
 
-module.exports = {
-  createSession,
-  getSession,
-  deleteSession
-};
+async function getSession(sessionId) {
+  const client = getClient();
+  if (!client) return memoryStore[sessionId] || null;
+
+  const { data, error } = await client
+    .from(SESSION_TABLE)
+    .select('data')
+    .eq('session_id', sessionId)
+    .gt('created_at', expiryTimestamp())
+    .single();
+
+  if (error || !data) return null;
+  return data.data;
+}
+
+async function deleteSession(sessionId) {
+  const client = getClient();
+  if (!client) {
+    delete memoryStore[sessionId];
+    return;
+  }
+  await client.from(SESSION_TABLE).delete().eq('session_id', sessionId);
+}
+
+module.exports = { createSession, getSession, deleteSession };
