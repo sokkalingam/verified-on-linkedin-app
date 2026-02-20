@@ -6,12 +6,10 @@ function getRedirectUri(req) {
   if (process.env.VERCEL_ENV === 'production' && process.env.BASE_URL) {
     return `${process.env.BASE_URL}/callback`;
   }
-  // On Vercel preview, use the per-deployment URL so the callback
-  // returns to this deployment (not production which runs different code)
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}/callback`;
-  }
-  // Local dev fallback
+  // Derive redirect URI from the actual request host.
+  // On Vercel preview this gives the stable branch URL (same across all pushes),
+  // rather than VERCEL_URL which is deployment-specific and changes every push.
+  // x-forwarded-proto and x-forwarded-host are set reliably by Vercel's edge layer.
   const proto = req.headers['x-forwarded-proto'] || 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host;
   return `${proto}://${host}/callback`;
