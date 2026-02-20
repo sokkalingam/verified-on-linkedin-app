@@ -1,10 +1,12 @@
 const querystring = require('querystring');
+const crypto = require('crypto');
 const { encodeState, decodeState } = require('../utils/session-state.util');
 const { exchangeCodeForToken } = require('../services/linkedin.service');
 const { getHomePage } = require('../views/home.view');
 const { getErrorPage } = require('../views/error.view');
 const { logUsage } = require('../services/usage.service');
 const { getRedirectUri } = require('../utils/redirect-uri.util');
+const { getSession, createSession } = require('../services/session.service');
 
 function handleAuth(req, res) {
   if (req.method === 'POST') {
@@ -104,6 +106,24 @@ async function handleCallback(req, res, parsedUrl) {
 
   console.log('✅ Authorization code received');
 
+  // Deduplication: Vercel's edge layer occasionally invokes the Lambda twice for
+  // the same callback request. The auth code is single-use, so the second invocation
+  // always fails with 400. Cache the profile URL after a successful exchange so the
+  // second invocation can reuse it rather than failing.
+  //
+  // Race condition: both invocations could pass this check before either stores the
+  // result. This is handled in the catch block — if the second invocation gets a 400,
+  // it means the first already succeeded and stored its result, so a cache check there
+  // recovers it. The window between "first stores" and "second checks" is milliseconds.
+  const codeHash = `code:${crypto.createHash('sha256').update(code).digest('hex')}`;
+  const cached = await getSession(codeHash).catch(() => null);
+  if (cached) {
+    console.log('⚠️ Duplicate callback — reusing cached profile URL');
+    res.writeHead(302, { 'Location': cached.profileUrl });
+    res.end();
+    return;
+  }
+
   try {
     console.log('📡 Exchanging code for access token...');
     const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri);
@@ -114,15 +134,32 @@ async function handleCallback(req, res, parsedUrl) {
       console.error('❌ Failed to log oauth_success:', err.message)
     );
 
-    res.writeHead(302, {
-      'Location': `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`
-    });
+    const profileUrl = `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`;
+
+    // Store before redirecting so the second invocation can recover if it arrives
+    // after this point but before its own LinkedIn call returns 400.
+    createSession(codeHash, { profileUrl }).catch(() => null);
+
+    res.writeHead(302, { 'Location': profileUrl });
     res.end();
 
     console.log('🔄 Redirecting to member profile page...');
 
   } catch (err) {
     console.error('❌ Error:', err.message);
+
+    // A 400 from LinkedIn on the token exchange means the code was already consumed
+    // by a parallel invocation. Check the cache — the successful invocation stores its
+    // result before responding, so it should be present by the time we reach here.
+    if (err.message.startsWith('HTTP 400')) {
+      const recovered = await getSession(codeHash).catch(() => null);
+      if (recovered) {
+        console.log('⚠️ Code consumed by parallel invocation — recovering from cache');
+        res.writeHead(302, { 'Location': recovered.profileUrl });
+        res.end();
+        return;
+      }
+    }
 
     logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(e =>
       console.error('❌ Failed to log oauth_failure:', e.message)
