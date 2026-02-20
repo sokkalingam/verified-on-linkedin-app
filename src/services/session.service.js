@@ -33,8 +33,9 @@ async function createSession(sessionId, data) {
   // Lazy cleanup: remove any expired sessions before inserting a new one
   await client.from(SESSION_TABLE).delete().lt('created_at', expiryTimestamp());
 
-  const { error } = await client.from(SESSION_TABLE).insert([{ session_id: sessionId, data }]);
+  const { data: inserted, error } = await client.from(SESSION_TABLE).insert([{ session_id: sessionId, data }]).select();
   if (error) throw new Error(`Failed to create session: ${error.message}`);
+  if (!inserted || inserted.length === 0) throw new Error('Session not stored — RLS may be blocking inserts on the sessions table');
 }
 
 async function getSession(sessionId) {
