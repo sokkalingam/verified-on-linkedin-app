@@ -3,7 +3,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../.env.local'
 
 const http = require('http');
 const url = require('url');
-const { PORT, BASE_URL, REDIRECT_URI } = require('./config');
+const { PORT, BASE_URL } = require('./config');
 const { handleHome } = require('./routes/home.route');
 const { handleAuth, handleCallback } = require('./routes/auth.route');
 const { handleMemberProfile } = require('./routes/profile.route');
@@ -61,8 +61,7 @@ console.log('LinkedIn Verification Web App');
 console.log('=============================================================\n');
 console.log(`🚀 Server starting on ${BASE_URL}`);
 console.log(`📖 Open ${BASE_URL} in your browser to begin.`);
-console.log(`\n⚠️  Important: Update your LinkedIn app's redirect URI to:`);
-console.log(`   ${REDIRECT_URI}\n`);
+console.log(`\n⚠️  Important: The redirect URI is derived from the incoming request URL.\n`);
 
 // Initialize database connection if configured
 initializeDatabase().catch(err => {

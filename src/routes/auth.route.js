@@ -1,10 +1,10 @@
 const querystring = require('querystring');
-const { REDIRECT_URI } = require('../config');
 const { createSession, getSession, deleteSession } = require('../services/session.service');
 const { exchangeCodeForToken } = require('../services/linkedin.service');
 const { getHomePage } = require('../views/home.view');
 const { getErrorPage } = require('../views/error.view');
 const { logUsage } = require('../services/usage.service');
+const { getRedirectUri } = require('../utils/redirect-uri.util');
 
 function handleAuth(req, res) {
   if (req.method === 'POST') {
@@ -19,7 +19,7 @@ function handleAuth(req, res) {
       // Validation
       if (!clientId || !clientSecret) {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(getHomePage('Both Client ID and Client Secret are required'));
+        res.end(getHomePage('Both Client ID and Client Secret are required', false, apiTier, getRedirectUri(req)));
         return;
       }
       
@@ -40,14 +40,15 @@ function handleAuth(req, res) {
       
       // Generate a session ID to store credentials temporarily
       const sessionId = Math.random().toString(36).substring(7);
-      createSession(sessionId, { clientId, clientSecret, apiTier, scopes });
-      
+      const redirectUri = getRedirectUri(req);
+      createSession(sessionId, { clientId, clientSecret, apiTier, scopes, redirectUri });
+
       console.log('🔐 Using Client ID:', clientId);
       console.log('🎯 API Tier:', apiTier.toUpperCase());
       console.log('🔐 Redirecting to LinkedIn OAuth...');
-      
-      const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${sessionId}&scope=${encodeURIComponent(scopes)}`;
-      
+
+      const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${sessionId}&scope=${encodeURIComponent(scopes)}`;
+
       console.log('\n📍 FULL OAUTH URL:');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log(authUrl);
@@ -55,7 +56,7 @@ function handleAuth(req, res) {
       console.log('📋 URL Parameters:');
       console.log('   • response_type: code');
       console.log('   • client_id:', clientId);
-      console.log('   • redirect_uri:', REDIRECT_URI);
+      console.log('   • redirect_uri:', redirectUri);
       console.log('   • scope:', scopes);
       console.log('   • state:', sessionId + '\n');
       
@@ -117,7 +118,7 @@ async function handleCallback(req, res, parsedUrl) {
   try {
     // Exchange code for access token
     console.log('📡 Exchanging code for access token...');
-    const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret);
+    const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri);
     console.log('✅ Access token obtained');
     
     // Log OAuth success (non-blocking)
