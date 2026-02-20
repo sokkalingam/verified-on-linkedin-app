@@ -111,9 +111,8 @@ async function handleCallback(req, res, parsedUrl) {
   const credentials = await getSession(sessionId);
   
   if (!credentials) {
-    // We can't log the failure without credentials, but we can still handle the error
     res.writeHead(400, { 'Content-Type': 'text/html' });
-    res.end(getErrorPage('Session expired or invalid. Please start again.'));
+    res.end(getErrorPage('This OAuth flow has already completed or the session expired. Please start again from the home page.'));
     return;
   }
   
@@ -132,14 +131,14 @@ async function handleCallback(req, res, parsedUrl) {
     );
     
     // Redirect to member profile with access token, client ID, and scopes for tutorial
-    res.writeHead(302, { 
+    // Clean up session before redirect
+    await deleteSession(sessionId);
+
+    res.writeHead(302, {
       'Location': `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`
     });
     res.end();
-    
-    // Clean up session
-    await deleteSession(sessionId);
-    
+
     console.log('🔄 Redirecting to member profile page...');
     
   } catch (error) {
