@@ -1,14 +1,20 @@
 const crypto = require('crypto');
 
-// Use Supabase anon key as signing secret since it's already required
-// and consistent across all Lambda instances. Falls back to a dev default.
+// Use a dedicated SESSION_SECRET or fall back to the Supabase anon key,
+// which is already required and consistent across all Lambda instances.
 function getSecret() {
   const key =
     process.env.SESSION_SECRET ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
-    'dev-only-insecure-fallback';
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+
+  if (!key) {
+    if (process.env.VERCEL_ENV === 'production') {
+      throw new Error('No signing secret configured. Set SESSION_SECRET or SUPABASE_ANON_KEY.');
+    }
+    return 'dev-only-insecure-fallback';
+  }
   return key;
 }
 
