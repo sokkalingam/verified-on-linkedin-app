@@ -33,6 +33,7 @@ function expiryTimestamp() {
 async function createSession(sessionId, data) {
   const client = getClient();
   if (!client) {
+    console.warn(`⚠️  createSession [${sessionId}]: using in-memory fallback`);
     memoryStore[sessionId] = data;
     return;
   }
@@ -42,11 +43,16 @@ async function createSession(sessionId, data) {
   const { data: inserted, error } = await client.from(SESSION_TABLE).insert([{ session_id: sessionId, data }]).select();
   if (error) throw new Error(`Failed to create session: ${error.message}`);
   if (!inserted || inserted.length === 0) throw new Error('Session not stored — RLS may be blocking inserts on the sessions table');
+  console.log(`✅ createSession [${sessionId}]: stored in Supabase`);
 }
 
 async function getSession(sessionId) {
   const client = getClient();
-  if (!client) return memoryStore[sessionId] || null;
+  if (!client) {
+    const found = memoryStore[sessionId] || null;
+    console.warn(`⚠️  getSession [${sessionId}]: in-memory fallback — ${found ? 'found' : 'NOT FOUND'}`);
+    return found;
+  }
 
   const { data, error } = await client
     .from(SESSION_TABLE)
@@ -55,7 +61,11 @@ async function getSession(sessionId) {
     .gt('created_at', expiryTimestamp())
     .single();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    console.warn(`⚠️  getSession [${sessionId}]: Supabase — NOT FOUND (error: ${error?.message})`);
+    return null;
+  }
+  console.log(`✅ getSession [${sessionId}]: found in Supabase`);
   return data.data;
 }
 
