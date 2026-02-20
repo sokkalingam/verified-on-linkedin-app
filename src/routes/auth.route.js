@@ -108,7 +108,7 @@ async function handleCallback(req, res, parsedUrl) {
   }
   
   // Retrieve credentials from session
-  const credentials = getSession(sessionId);
+  const credentials = await getSession(sessionId);
   
   if (!credentials) {
     // We can't log the failure without credentials, but we can still handle the error
