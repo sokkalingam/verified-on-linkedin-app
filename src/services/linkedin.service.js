@@ -1,13 +1,12 @@
 const { httpsRequest } = require('../utils/https.util');
 
-async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri, codeVerifier) {
+async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code: code,
     client_id: clientId,
     client_secret: clientSecret,
-    redirect_uri: redirectUri,
-    ...(codeVerifier && { code_verifier: codeVerifier })
+    redirect_uri: redirectUri
   });
 
   const body = params.toString();

@@ -46,21 +46,10 @@ function handleAuth(req, res) {
         // across Vercel Lambda cold starts and multiple instances.
         const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri });
 
-        console.log('🔐 Using Client ID:', clientId);
         console.log('🎯 API Tier:', apiTier.toUpperCase());
         console.log('🔐 Redirecting to LinkedIn OAuth...');
 
         const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${encodeURIComponent(scopes)}`;
-
-        console.log('\n📍 FULL OAUTH URL:');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log(authUrl);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-        console.log('📋 URL Parameters:');
-        console.log('   • response_type: code');
-        console.log('   • client_id:', clientId);
-        console.log('   • redirect_uri:', redirectUri);
-        console.log('   • scope:', scopes);
 
         res.writeHead(302, { 'Location': authUrl });
         res.end();
@@ -116,7 +105,6 @@ async function handleCallback(req, res, parsedUrl) {
   }
 
   console.log('✅ Authorization code received');
-  console.log('🔑 Decoded redirectUri from state:', credentials.redirectUri);
 
   // Deduplication guard: Vercel may invoke the Lambda twice for the same request
   // if the first invocation is slow (e.g., due to LinkedIn API latency). The second
@@ -133,7 +121,7 @@ async function handleCallback(req, res, parsedUrl) {
 
   try {
     console.log('📡 Exchanging code for access token...');
-    const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri, credentials.codeVerifier);
+    const accessToken = await exchangeCodeForToken(code, credentials.clientId, credentials.clientSecret, credentials.redirectUri);
     console.log('✅ Access token obtained');
 
     // Log OAuth success (non-blocking)
