@@ -8,18 +8,20 @@ async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
     client_secret: clientSecret,
     redirect_uri: redirectUri
   });
-  
+
+  const body = params.toString();
+
   const options = {
     hostname: 'www.linkedin.com',
     path: '/oauth/v2/accessToken',
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': params.toString().length
+      'Content-Length': Buffer.byteLength(body)
     }
   };
-  
-  const response = await httpsRequest(options, params.toString());
+
+  const response = await httpsRequest(options, body);
   return response.access_token;
 }
 
