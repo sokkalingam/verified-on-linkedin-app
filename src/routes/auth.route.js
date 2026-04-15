@@ -76,7 +76,7 @@ async function handleCallback(req, res, parsedUrl) {
     const credentials = decodeState(rawState);
 
     // Seamless fallback: if r_account_signals is not enabled for this app, silently retry without it
-    if (error === 'invalid_scope_error' && credentials && credentials.accountSignalsRequested) {
+    if ((error === 'unauthorized_scope_error' || error === 'invalid_scope_error') && credentials && credentials.accountSignalsRequested) {
       console.log('⚠️  r_account_signals not enabled for this app — retrying OAuth without it');
 
       const reducedScopes = credentials.scopes.replace(/\br_account_signals\b/, '').replace(/\s+/g, ' ').trim();
