@@ -1,4 +1,5 @@
 const querystring = require('querystring');
+const { randomBytes } = require('crypto');
 const { REDIRECT_URI } = require('../config');
 const { createSession, getSession, deleteSession } = require('../services/session.service');
 const { exchangeCodeForToken } = require('../services/linkedin.service');
@@ -31,16 +32,18 @@ function handleAuth(req, res) {
       // Determine scopes based on API tier
       // Development and Lite use the same scopes
       let scopes;
+      let accountSignalsRequested = false;
       if (apiTier === 'plus') {
-        scopes = 'r_verify_details r_profile_basicinfo r_most_recent_education r_primary_current_experience';
+        scopes = 'r_verify_details r_profile_basicinfo r_most_recent_education r_primary_current_experience r_account_signals';
+        accountSignalsRequested = true;
       } else {
         // Default for 'development', 'lite', or any other value
         scopes = 'r_verify r_profile_basicinfo';
       }
-      
+
       // Generate a session ID to store credentials temporarily
       const sessionId = Math.random().toString(36).substring(7);
-      createSession(sessionId, { clientId, clientSecret, apiTier, scopes });
+      createSession(sessionId, { clientId, clientSecret, apiTier, scopes, accountSignalsRequested });
       
       console.log('🔐 Using Client ID:', clientId);
       console.log('🎯 API Tier:', apiTier.toUpperCase());
@@ -74,14 +77,36 @@ async function handleCallback(req, res, parsedUrl) {
   const error = parsedUrl.query.error;
   
   if (error) {
-    // Retrieve credentials from session to log the failure
     const credentials = getSession(sessionId);
+
+    // Seamless fallback: if r_account_signals is not enabled for this app, silently retry without it
+    if (error === 'invalid_scope_error' && credentials && credentials.accountSignalsRequested) {
+      console.log('⚠️  r_account_signals not enabled for this app — retrying OAuth without it');
+      deleteSession(sessionId);
+
+      const reducedScopes = credentials.scopes.replace(/\br_account_signals\b/, '').replace(/\s+/g, ' ').trim();
+      const retrySessionId = randomBytes(16).toString('hex');
+      createSession(retrySessionId, {
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        apiTier: credentials.apiTier,
+        scopes: reducedScopes,
+        accountSignalsRequested: false
+      });
+
+      const retryAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${credentials.clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${retrySessionId}&scope=${encodeURIComponent(reducedScopes)}`;
+      res.writeHead(302, { 'Location': retryAuthUrl });
+      res.end();
+      return;
+    }
+
+    // All other errors — log and show error page
     if (credentials) {
-      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err => 
+      logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err =>
         console.error('❌ Failed to log oauth_failure:', err.message)
       );
     }
-    
+
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(getErrorPage(error));
     console.error('❌ Authentication error:', error);

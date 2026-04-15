@@ -1,3 +1,12 @@
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getProfilePage(profileInfo, verificationReport, tutorialData) {
   const firstName = profileInfo.basicInfo?.firstName?.localized?.en_US || 'User';
   const lastName = profileInfo.basicInfo?.lastName?.localized?.en_US || '';
@@ -13,6 +22,9 @@ function getProfilePage(profileInfo, verificationReport, tutorialData) {
   // Plus tier fields
   const education = profileInfo.mostRecentEducation;
   const experience = profileInfo.primaryCurrentPosition;
+  const accountSignals = profileInfo.accountSignals;
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
   const verificationCards = verifications.map(type => {
     const icons = {
@@ -697,6 +709,50 @@ Field: primaryCurrentPosition.startedOn">ⓘ</span>
     </div>
     ` : ''}
     
+    ${accountSignals ? `
+    <div class="section">
+      <h2 class="section-title">📊 Account Signals</h2>
+      <div class="info-card">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 20px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Account State
+              <span class="tooltip-icon" data-tooltip-text="API: /identityMe
+Field: accountSignals.accountState">ⓘ</span>
+            </div>
+            <div style="font-size: 16px; font-weight: 600; color: #333;">
+              ${accountSignals.accountState ? escapeHtml(accountSignals.accountState) : '—'}
+            </div>
+          </div>
+          ${accountSignals.connectionsRange ? `
+          <div>
+            <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Connections
+              <span class="tooltip-icon" data-tooltip-text="API: /identityMe
+Field: accountSignals.connectionsRange">ⓘ</span>
+            </div>
+            <div style="font-size: 16px; font-weight: 600; color: #333;">
+              ${escapeHtml(accountSignals.connectionsRange.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase()))}
+            </div>
+          </div>
+          ` : ''}
+          ${accountSignals.accountCreatedOn?.month && accountSignals.accountCreatedOn?.year ? `
+          <div>
+            <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Member Since
+              <span class="tooltip-icon" data-tooltip-text="API: /identityMe
+Field: accountSignals.accountCreatedOn">ⓘ</span>
+            </div>
+            <div style="font-size: 16px; font-weight: 600; color: #333;">
+              ${escapeHtml(monthNames[accountSignals.accountCreatedOn.month - 1])} ${escapeHtml(String(accountSignals.accountCreatedOn.year))}
+            </div>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
     <div class="api-section">
       <h2 class="api-title">📋 API Response</h2>
       
