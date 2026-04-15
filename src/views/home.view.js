@@ -1,6 +1,4 @@
-const { REDIRECT_URI } = require('../config');
-
-function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite') {
+function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redirectUri = '') {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -252,7 +250,7 @@ function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite') {
       <div class="setup-step">
         Before entering your credentials, add this redirect URI to your LinkedIn app settings:
       </div>
-      <div class="redirect-uri">${REDIRECT_URI}</div>
+      <div class="redirect-uri">${redirectUri}</div>
       <div class="setup-step">
         📍 <strong>How to add it:</strong>
         <br>1. Go to <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" class="setup-link">LinkedIn Developer Portal</a>

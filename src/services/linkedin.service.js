@@ -1,26 +1,27 @@
 const { httpsRequest } = require('../utils/https.util');
-const { REDIRECT_URI } = require('../config');
 
-async function exchangeCodeForToken(code, clientId, clientSecret) {
+async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code: code,
     client_id: clientId,
     client_secret: clientSecret,
-    redirect_uri: REDIRECT_URI
+    redirect_uri: redirectUri
   });
-  
+
+  const body = params.toString();
+
   const options = {
     hostname: 'www.linkedin.com',
     path: '/oauth/v2/accessToken',
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Content-Length': params.toString().length
+      'Content-Length': Buffer.byteLength(body)
     }
   };
-  
-  const response = await httpsRequest(options, params.toString());
+
+  const response = await httpsRequest(options, body);
   return response.access_token;
 }
 
