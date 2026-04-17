@@ -33,7 +33,9 @@ function handleAuth(req, res) {
 
         // Determine scopes based on API tier
         let scopes;
-        if (apiTier === 'plus') {
+        if (apiTier === 'plus_signals') {
+          scopes = 'r_verify_details r_profile_basicinfo r_most_recent_education r_primary_current_experience r_account_signals';
+        } else if (apiTier === 'plus') {
           scopes = 'r_verify_details r_profile_basicinfo r_most_recent_education r_primary_current_experience';
         } else {
           scopes = 'r_verify r_profile_basicinfo';

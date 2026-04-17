@@ -31,7 +31,7 @@ async function fetchVerificationReport(accessToken) {
     path: '/rest/verificationReport',
     method: 'GET',
     headers: {
-      'LinkedIn-Version': '202510',
+      'LinkedIn-Version': '202604',
       'Authorization': `Bearer ${accessToken}`
     }
   };
@@ -45,7 +45,7 @@ async function fetchProfileInfo(accessToken) {
     path: '/rest/identityMe',
     method: 'GET',
     headers: {
-      'LinkedIn-Version': '202510.03',
+      'LinkedIn-Version': '202604',
       'Authorization': `Bearer ${accessToken}`
     }
   };
