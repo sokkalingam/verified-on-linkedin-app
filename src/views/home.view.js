@@ -1,4 +1,5 @@
-function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redirectUri = '') {
+function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redirectUri = '', clientId = '', clientSecret = '') {
+  const isPrefilled = !!(clientId && clientSecret);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -231,6 +232,27 @@ function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redire
     .step2-disabled-message.hidden {
       display: none;
     }
+    .btn-copy {
+      background: white;
+      color: #0A66C2;
+      border: 2px solid #0A66C2;
+      padding: 12px 48px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 12px;
+      transition: all 0.3s ease;
+    }
+    .btn-copy:hover {
+      background: #f0f7ff;
+    }
+    .btn-copy.copied {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border-color: #2e7d32;
+    }
   </style>
 </head>
 <body>
@@ -281,27 +303,28 @@ function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redire
       <form action="/auth" method="POST" id="authForm">
         <div class="form-group">
           <label for="clientId">LinkedIn Client ID <span class="required">*</span></label>
-          <input type="text" id="clientId" name="clientId" required placeholder="Enter your LinkedIn Client ID" disabled>
+          <input type="text" id="clientId" name="clientId" required placeholder="Enter your LinkedIn Client ID" value="${clientId}" ${isPrefilled ? '' : 'disabled'}>
           <div class="helper-text">From your LinkedIn app dashboard</div>
         </div>
-        
+
         <div class="form-group">
           <label for="clientSecret">LinkedIn Client Secret <span class="required">*</span></label>
-          <input type="password" id="clientSecret" name="clientSecret" required placeholder="Enter your LinkedIn Client Secret" disabled>
+          <input type="password" id="clientSecret" name="clientSecret" required placeholder="Enter your LinkedIn Client Secret" value="${clientSecret}" ${isPrefilled ? '' : 'disabled'}>
           <div class="helper-text">Keep this confidential</div>
         </div>
-        
+
         <div class="form-group">
           <label for="apiTier">Verified On LinkedIn API Product Tier <span class="required">*</span></label>
-          <select id="apiTier" name="apiTier" required disabled>
+          <select id="apiTier" name="apiTier" required ${isPrefilled ? '' : 'disabled'}>
             <option value="lite" ${tier === 'lite' ? 'selected' : ''}>Development / Lite</option>
             <option value="plus" ${tier === 'plus' ? 'selected' : ''}>Plus</option>
             <option value="plus_signals" ${tier === 'plus_signals' ? 'selected' : ''}>Plus + Account Signals</option>
           </select>
           <div class="helper-text">Select your LinkedIn API product tier</div>
         </div>
-        
-        <button type="submit" class="btn" disabled>Verify on LinkedIn</button>
+
+        <button type="submit" class="btn" ${isPrefilled ? '' : 'disabled'}>Verify on LinkedIn</button>
+        <button type="button" class="btn-copy" id="copyLinkBtn" onclick="copyShareableLink()">Copy shareable link</button>
       </form>
     </div>
     
@@ -323,45 +346,63 @@ function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redire
   
   <script>
     const skipSetup = ${skipSetup};
-    
+
+    function enableForm() {
+      document.getElementById('clientId').disabled = false;
+      document.getElementById('clientSecret').disabled = false;
+      document.getElementById('apiTier').disabled = false;
+      document.querySelector('.btn').disabled = false;
+      document.getElementById('copyLinkBtn').disabled = false;
+    }
+
+    function disableForm() {
+      document.getElementById('clientId').disabled = true;
+      document.getElementById('clientSecret').disabled = true;
+      document.getElementById('apiTier').disabled = true;
+      document.querySelector('.btn').disabled = true;
+      document.getElementById('copyLinkBtn').disabled = true;
+    }
+
     function toggleStep2() {
       const checkbox = document.getElementById('setupComplete');
       const step2Container = document.getElementById('step2Container');
       const disabledMessage = document.getElementById('step2DisabledMessage');
-      const clientId = document.getElementById('clientId');
-      const clientSecret = document.getElementById('clientSecret');
-      const apiTier = document.getElementById('apiTier');
-      const submitBtn = document.querySelector('.btn');
-      
+
       if (checkbox.checked) {
         step2Container.classList.add('enabled');
         disabledMessage.classList.add('hidden');
-        clientId.disabled = false;
-        clientSecret.disabled = false;
-        apiTier.disabled = false;
-        submitBtn.disabled = false;
+        enableForm();
       } else {
         step2Container.classList.remove('enabled');
         disabledMessage.classList.remove('hidden');
-        clientId.disabled = true;
-        clientSecret.disabled = true;
-        apiTier.disabled = true;
-        submitBtn.disabled = true;
+        disableForm();
       }
     }
-    
-    // Initialize form state on page load
+
+    function copyShareableLink() {
+      const clientId = document.getElementById('clientId').value.trim();
+      const clientSecret = document.getElementById('clientSecret').value.trim();
+      const tier = document.getElementById('apiTier').value;
+
+      const url = new URL(window.location.origin);
+      url.searchParams.set('clientId', clientId);
+      url.searchParams.set('clientSecret', clientSecret);
+      url.searchParams.set('tier', tier);
+
+      navigator.clipboard.writeText(url.toString()).then(() => {
+        const btn = document.getElementById('copyLinkBtn');
+        btn.textContent = 'Link copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy shareable link';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
     window.addEventListener('DOMContentLoaded', function() {
       if (skipSetup) {
-        const clientId = document.getElementById('clientId');
-        const clientSecret = document.getElementById('clientSecret');
-        const apiTier = document.getElementById('apiTier');
-        const submitBtn = document.querySelector('.btn');
-        
-        clientId.disabled = false;
-        clientSecret.disabled = false;
-        apiTier.disabled = false;
-        submitBtn.disabled = false;
+        enableForm();
       }
     });
   </script>
