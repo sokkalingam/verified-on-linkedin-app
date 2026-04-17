@@ -296,6 +296,7 @@ function getHomePage(errorMessage = '', skipSetup = false, tier = 'lite', redire
           <select id="apiTier" name="apiTier" required disabled>
             <option value="lite" ${tier === 'lite' ? 'selected' : ''}>Development / Lite</option>
             <option value="plus" ${tier === 'plus' ? 'selected' : ''}>Plus</option>
+            <option value="plus_signals" ${tier === 'plus_signals' ? 'selected' : ''}>Plus + Account Signals</option>
           </select>
           <div class="helper-text">Select your LinkedIn API product tier</div>
         </div>

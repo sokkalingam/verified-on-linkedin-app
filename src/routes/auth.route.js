@@ -33,10 +33,10 @@ function handleAuth(req, res) {
 
         // Determine scopes based on API tier
         let scopes;
-        let accountSignalsRequested = false;
-        if (apiTier === 'plus') {
+        if (apiTier === 'plus_signals') {
           scopes = 'r_verify_details r_profile_basicinfo r_most_recent_education r_primary_current_experience r_account_signals';
-          accountSignalsRequested = true;
+        } else if (apiTier === 'plus') {
+          scopes = 'r_verify_details r_profile_basicinfo r_most_recent_education r_primary_current_experience';
         } else {
           scopes = 'r_verify r_profile_basicinfo';
         }
@@ -46,7 +46,7 @@ function handleAuth(req, res) {
         // Encode all session data into the OAuth state parameter.
         // This avoids any server-side session storage and works reliably
         // across Vercel Lambda cold starts and multiple instances.
-        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri, accountSignalsRequested });
+        const state = encodeState({ clientId, clientSecret, apiTier, scopes, redirectUri });
 
         console.log('🎯 API Tier:', apiTier.toUpperCase());
         console.log('🔐 Redirecting to LinkedIn OAuth...');
@@ -74,28 +74,6 @@ async function handleCallback(req, res, parsedUrl) {
 
   if (error) {
     const credentials = decodeState(rawState);
-
-    // Seamless fallback: if r_account_signals is not enabled for this app, silently retry without it
-    if ((error === 'unauthorized_scope_error' || error === 'invalid_scope_error') && credentials && credentials.accountSignalsRequested) {
-      console.log('⚠️  r_account_signals not enabled for this app — retrying OAuth without it');
-
-      const reducedScopes = credentials.scopes.replace(/\br_account_signals\b/, '').replace(/\s+/g, ' ').trim();
-      const retryState = encodeState({
-        clientId: credentials.clientId,
-        clientSecret: credentials.clientSecret,
-        apiTier: credentials.apiTier,
-        scopes: reducedScopes,
-        redirectUri: credentials.redirectUri,
-        accountSignalsRequested: false
-      });
-
-      const retryAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${credentials.clientId}&redirect_uri=${encodeURIComponent(credentials.redirectUri)}&state=${encodeURIComponent(retryState)}&scope=${encodeURIComponent(reducedScopes)}`;
-      res.writeHead(302, { 'Location': retryAuthUrl });
-      res.end();
-      return;
-    }
-
-    // All other errors — log and show error page
     if (credentials) {
       logUsage(credentials.clientId, credentials.apiTier, 'oauth_failure').catch(err =>
         console.error('❌ Failed to log oauth_failure:', err.message)
