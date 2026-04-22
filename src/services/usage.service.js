@@ -18,39 +18,36 @@ let supabaseClient = null;
 
 // Initialize Supabase client
 async function initializeDatabase() {
-  if (!supabaseClient) {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.error('❌ SUPABASE_URL and SUPABASE_ANON_KEY environment variables are required!');
-      console.error('   Please set these in your .env.local or Vercel environment variables');
-      process.exit(1);
+  if (supabaseClient) return;
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn('⚠️  usage.service: SUPABASE_URL/ANON_KEY not set — usage tracking disabled');
+    return;
+  }
+
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Test connection by querying the table schema
+    const { error } = await supabaseClient
+      .from(USAGE_TABLE)
+      .select('*')
+      .limit(1);
+
+    if (error) {
+      console.warn(`⚠️  usage.service: Failed to connect to Supabase table "${USAGE_TABLE}": ${error.message}`);
+      console.warn('   Usage tracking disabled for this invocation.');
+      supabaseClient = null;
+      return;
     }
-    
-    try {
-      const { createClient } = require('@supabase/supabase-js');
-      supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      
-      // Test connection by querying the table schema
-      const { data, error } = await supabaseClient
-        .from(USAGE_TABLE)
-        .select('*')
-        .limit(1);
-      
-      if (error) {
-        console.error('❌ Failed to connect to Supabase table:', error.message);
-        console.error('   Table:', USAGE_TABLE);
-        console.error('   Error details:', error);
-        process.exit(1);
-      }
-      
-      const env = NODE_ENV === 'production' ? '🔴 PRODUCTION' : '🟢 LOCAL DEV';
-      console.log(`✅ Connected to Supabase for usage tracking [${env}]`);
-      console.log(`   Table: ${USAGE_TABLE}`);
-      console.log(`   URL: ${SUPABASE_URL}`);
-    } catch (error) {
-      console.error('❌ Failed to initialize Supabase:', error.message);
-      console.error('   Stack:', error.stack);
-      process.exit(1);
-    }
+
+    const env = NODE_ENV === 'production' ? 'PRODUCTION' : 'LOCAL DEV';
+    console.log(`✅ usage.service: Connected to Supabase [${env}] — table: ${USAGE_TABLE}`);
+  } catch (exception) {
+    console.warn(`⚠️  usage.service: Failed to initialize Supabase: ${exception.message}`);
+    console.warn('   Usage tracking disabled for this invocation.');
+    supabaseClient = null;
   }
 }
 
