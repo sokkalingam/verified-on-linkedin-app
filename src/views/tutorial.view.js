@@ -523,7 +523,7 @@ curl -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \\
               <li class="api-param-item">
                 <span class="api-param-name">LinkedIn-Version</span>
                 <span class="api-param-required">REQUIRED</span>
-                <div class="api-param-desc">API version: <code>202510</code></div>
+                <div class="api-param-desc">API version: <code>202604</code></div>
               </li>
               <li class="api-param-item">
                 <span class="api-param-name">Authorization</span>
@@ -562,7 +562,7 @@ curl -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \\
                 </button>
 <pre id="step3-curl-code"><span class="api-comment"># Access token from Step 2</span>
 curl -X GET 'https://api.linkedin.com/rest/verificationReport' \\
-  -H 'LinkedIn-Version: 202510' \\
+  -H 'LinkedIn-Version: 202604' \\
   -H 'Authorization: Bearer <span class="api-highlight">${accessToken || 'YOUR_ACCESS_TOKEN'}</span>'</pre>
               </div>
             </div>
@@ -610,7 +610,7 @@ curl -X GET 'https://api.linkedin.com/rest/verificationReport' \\
               <li class="api-param-item">
                 <span class="api-param-name">LinkedIn-Version</span>
                 <span class="api-param-required">REQUIRED</span>
-                <div class="api-param-desc">API version: <code>202510.03</code></div>
+                <div class="api-param-desc">API version: <code>202604</code></div>
               </li>
               <li class="api-param-item">
                 <span class="api-param-name">Authorization</span>
@@ -653,7 +653,7 @@ curl -X GET 'https://api.linkedin.com/rest/verificationReport' \\
                 </button>
 <pre id="step4-curl-code"><span class="api-comment"># Access token from Step 2</span>
 curl -X GET 'https://api.linkedin.com/rest/identityMe' \\
-  -H 'LinkedIn-Version: 202510.03' \\
+  -H 'LinkedIn-Version: 202604' \\
   -H 'Authorization: Bearer <span class="api-highlight">${accessToken || 'YOUR_ACCESS_TOKEN'}</span>'</pre>
               </div>
             </div>
