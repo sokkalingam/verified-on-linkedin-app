@@ -7,7 +7,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function getProfilePage(profileInfo, verificationReport, tutorialData) {
+function getProfilePage(profileInfo, verificationReport, tutorialData, validationStatus = null) {
   const firstName = profileInfo.basicInfo?.firstName?.localized?.en_US || 'User';
   const lastName = profileInfo.basicInfo?.lastName?.localized?.en_US || '';
   const fullName = `${firstName} ${lastName}`.trim();
@@ -16,9 +16,10 @@ function getProfilePage(profileInfo, verificationReport, tutorialData) {
   const profilePicture = profileInfo.basicInfo?.profilePicture?.croppedImage?.downloadUrl || '';
   const verifications = verificationReport.verifications || [];
   const verificationUrl = verificationReport.verificationUrl || '';
-  
+  const memberId = profileInfo.id;
+
   const hasVerifications = verifications.length > 0;
-  
+
   // Plus tier fields
   const education = profileInfo.mostRecentEducation;
   const experience = profileInfo.primaryCurrentPosition;
@@ -26,6 +27,69 @@ function getProfilePage(profileInfo, verificationReport, tutorialData) {
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
+  // Build validation status section HTML ahead of the main template to avoid
+  // nested template literal / IIFE complexity.
+  let validationStatusHTML = '';
+  if (validationStatus) {
+    const escapedMemberId = escapeHtml(memberId || '');
+    if (validationStatus.error) {
+      validationStatusHTML = `
+    <div class="section">
+      <h2 class="section-title">🔍 Validation Status
+        <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Member ID: ${escapedMemberId}&#10;Auth: 2-legged OAuth (client_credentials)&#10;Scope: r_validation_status">ⓘ</span>
+      </h2>
+      <div style="background: #fff3e0; border: 1px solid #ffe0b2; border-radius: 8px; padding: 16px; color: #e65100; font-size: 14px;">
+        <strong>Unavailable:</strong> ${escapeHtml(validationStatus.error)}
+        <div style="margin-top: 8px; color: #bf360c; font-size: 13px;">
+          This may mean the <code>r_validation_status</code> scope is not enabled on your LinkedIn app, or the app does not have access to the Validation Status product.
+        </div>
+      </div>
+    </div>`;
+    } else {
+      const results = validationStatus.elements || validationStatus.validationResults || [];
+      const firstResult = results[0] || {};
+      const statusField = firstResult.status ? `
+          <div>
+            <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Status
+              <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Field: elements[0].status">ⓘ</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 600; color: #333;">${escapeHtml(String(firstResult.status))}</div>
+          </div>` : '';
+      const accountStatusField = firstResult.validationDetails?.accountStatus ? `
+          <div>
+            <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Account Status
+              <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Field: elements[0].validationDetails.accountStatus">ⓘ</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 600; color: #333;">${escapeHtml(String(firstResult.validationDetails.accountStatus))}</div>
+          </div>` : '';
+      validationStatusHTML = `
+    <div class="section">
+      <h2 class="section-title">🔍 Validation Status
+        <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Member ID: ${escapedMemberId}&#10;Auth: 2-legged OAuth (client_credentials)&#10;Scope: r_validation_status">ⓘ</span>
+      </h2>
+      <div class="info-card">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Member ID
+              <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Field: validationQueries[0].id">ⓘ</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 600; color: #333; font-family: monospace;">${escapedMemberId || '—'}</div>
+          </div>
+          ${statusField}
+          ${accountStatusField}
+        </div>
+        <details>
+          <summary style="cursor: pointer; font-size: 13px; color: #0A66C2; font-weight: 600; padding: 8px 0;">Full API Response</summary>
+          <pre style="margin-top: 12px;">${escapeHtml(JSON.stringify(validationStatus, null, 2))}</pre>
+        </details>
+      </div>
+    </div>`;
+    }
+  }
+
   const verificationCards = verifications.map(type => {
     const icons = {
       'IDENTITY': { emoji: '👤', title: 'Identity', subtitle: 'Your identity has been verified' },
@@ -753,9 +817,11 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
     </div>
     ` : ''}
 
+    ${validationStatusHTML}
+
     <div class="api-section">
       <h2 class="api-title">📋 API Response</h2>
-      
+
       <div class="collapsible">
         <div class="collapsible-header" onclick="toggleCollapsible(this)">
           <span class="collapsible-header-title">Profile Information</span>
@@ -765,7 +831,7 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
           <pre>${JSON.stringify(profileInfo, null, 2)}</pre>
         </div>
       </div>
-      
+
       <div class="collapsible">
         <div class="collapsible-header" onclick="toggleCollapsible(this)">
           <span class="collapsible-header-title">Verification Report</span>
