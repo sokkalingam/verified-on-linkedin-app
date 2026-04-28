@@ -58,12 +58,12 @@ async function handleMemberProfile(req, res, parsedUrl) {
       }
     }
 
-    // Build tutorial data
-    const tutorialHTML = buildTutorialSteps(accessToken, clientId, scopes);
+    // Build tutorial data — pass memberId for the validation status curl examples
+    const tutorialHTML = buildTutorialSteps(accessToken, clientId, scopes, memberId);
 
     // Display profile page
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(getProfilePage(profileInfo, verificationReport, tutorialHTML, validationStatus));
+    res.end(getProfilePage(profileInfo, verificationReport, tutorialHTML, validationStatus, clientId, clientSecret));
     
     // Log successful API call - get tier from scopes (if available, default to 'lite')
     const tier = scopes.includes('r_account_signals') ? 'plus_signals' : scopes.includes('r_verify_details') ? 'plus' : 'lite';
