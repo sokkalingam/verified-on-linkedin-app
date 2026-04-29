@@ -7,7 +7,94 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function getProfilePage(profileInfo, verificationReport, tutorialData) {
+// Renders the inner content of the Validation Status section from a data object.
+// Used both server-side (initial page render) and client-side (via JS after button click).
+// Returns an HTML string.
+function buildValidationContentHTML(data, escapedMemberId) {
+  if (!data) {
+    return `<p style="color: #999; font-size: 14px;">Click "Pull ValidationStatus" to load data.</p>`;
+  }
+
+  if (data.error) {
+    return `
+      <div style="background: #fff3e0; border: 1px solid #ffe0b2; border-radius: 8px; padding: 16px; color: #e65100; font-size: 14px;">
+        <strong>Unavailable:</strong> ${escapeHtml(data.error)}
+        <div style="margin-top: 8px; color: #bf360c; font-size: 13px;">
+          This typically means the <code>r_validation_status</code> scope is not enabled on your LinkedIn app or the app does not have access to the Validation Status product.
+        </div>
+      </div>`;
+  }
+
+  // Extract the first result element from common response shapes
+  const results = data.elements || data.validationResults || data.validationQueries || [];
+  const firstResult = results[0] || data;
+
+  // Build field cards for all scalar and simple-object fields
+  const fieldCards = buildFieldCards(firstResult, escapedMemberId);
+
+  return `
+      <div class="info-card">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 20px;">
+          ${fieldCards}
+        </div>
+        <details>
+          <summary style="cursor: pointer; font-size: 13px; color: #0A66C2; font-weight: 600; padding: 8px 0; border-top: 1px solid #e0e0e0; margin-top: 4px;">Full API Response</summary>
+          <pre style="margin-top: 12px; background: #f5f5f5; padding: 16px; border-radius: 4px; font-size: 12px; overflow-x: auto;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+        </details>
+      </div>`;
+}
+
+// Produces labeled <div> cards for each readable field in a result object.
+function buildFieldCards(obj, escapedMemberId) {
+  const cards = [];
+
+  // Always show the member ID first
+  cards.push(`
+    <div>
+      <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+        Member ID
+        <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Field: validationQueries[0].id">ⓘ</span>
+      </div>
+      <div style="font-size: 14px; font-weight: 600; color: #333; font-family: monospace;">${escapedMemberId || '—'}</div>
+    </div>`);
+
+  if (!obj || typeof obj !== 'object') return cards.join('');
+
+  // Render scalar fields and one level of nested objects
+  function renderField(label, value, tooltipField) {
+    const displayLabel = label.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim();
+    const titleCase = displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1);
+    const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : escapeHtml(String(value));
+    cards.push(`
+    <div>
+      <div style="font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+        ${escapeHtml(titleCase)}
+        <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Field: ${escapeHtml(tooltipField)}">ⓘ</span>
+      </div>
+      <div style="font-size: 14px; font-weight: 600; color: #333;">${displayValue}</div>
+    </div>`);
+  }
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'id') continue; // already shown as Member ID
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      renderField(key, value, `elements[0].${key}`);
+    } else if (typeof value === 'object' && !Array.isArray(value)) {
+      // One level deep for nested objects (e.g. validationDetails)
+      for (const [nestedKey, nestedValue] of Object.entries(value)) {
+        if (nestedValue === null || nestedValue === undefined) continue;
+        if (typeof nestedValue === 'string' || typeof nestedValue === 'number' || typeof nestedValue === 'boolean') {
+          renderField(nestedKey, nestedValue, `elements[0].${key}.${nestedKey}`);
+        }
+      }
+    }
+  }
+
+  return cards.join('');
+}
+
+function getProfilePage(profileInfo, verificationReport, tutorialData, validationStatus = null, clientId = '', clientSecret = '') {
   const firstName = profileInfo.basicInfo?.firstName?.localized?.en_US || 'User';
   const lastName = profileInfo.basicInfo?.lastName?.localized?.en_US || '';
   const fullName = `${firstName} ${lastName}`.trim();
@@ -16,9 +103,10 @@ function getProfilePage(profileInfo, verificationReport, tutorialData) {
   const profilePicture = profileInfo.basicInfo?.profilePicture?.croppedImage?.downloadUrl || '';
   const verifications = verificationReport.verifications || [];
   const verificationUrl = verificationReport.verificationUrl || '';
-  
+  const memberId = profileInfo.id;
+
   const hasVerifications = verifications.length > 0;
-  
+
   // Plus tier fields
   const education = profileInfo.mostRecentEducation;
   const experience = profileInfo.primaryCurrentPosition;
@@ -26,6 +114,32 @@ function getProfilePage(profileInfo, verificationReport, tutorialData) {
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   
+  // Build validation status section HTML. The section is shown whenever memberId
+  // is present, so the "Pull ValidationStatus" button is always available.
+  // Initial data from the server-side call is also rendered if it exists.
+  let validationStatusHTML = '';
+  if (memberId) {
+    const escapedMemberId = escapeHtml(memberId);
+    const initialContentHTML = buildValidationContentHTML(validationStatus, escapedMemberId);
+    validationStatusHTML = `
+    <div class="section" id="validationStatusSection">
+      <h2 class="section-title" style="justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <span>
+          🔍 Validation Status
+          <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Member ID: ${escapedMemberId}&#10;Auth: 2-legged OAuth (client_credentials)&#10;Scope: r_validation_status">ⓘ</span>
+        </span>
+        <button id="pullValidationBtn" onclick="pullValidationStatus()"
+          style="background: #0A66C2; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;"
+          onmouseover="this.style.background='#004182'" onmouseout="this.style.background='#0A66C2'">
+          Pull ValidationStatus
+        </button>
+      </h2>
+      <div id="validationStatusContent">
+        ${initialContentHTML}
+      </div>
+    </div>`;
+  }
+
   const verificationCards = verifications.map(type => {
     const icons = {
       'IDENTITY': { emoji: '👤', title: 'Identity', subtitle: 'Your identity has been verified' },
@@ -753,9 +867,11 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
     </div>
     ` : ''}
 
+    ${validationStatusHTML}
+
     <div class="api-section">
       <h2 class="api-title">📋 API Response</h2>
-      
+
       <div class="collapsible">
         <div class="collapsible-header" onclick="toggleCollapsible(this)">
           <span class="collapsible-header-title">Profile Information</span>
@@ -765,7 +881,7 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
           <pre>${JSON.stringify(profileInfo, null, 2)}</pre>
         </div>
       </div>
-      
+
       <div class="collapsible">
         <div class="collapsible-header" onclick="toggleCollapsible(this)">
           <span class="collapsible-header-title">Verification Report</span>
@@ -900,6 +1016,138 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
         });
       });
     });
+  </script>
+
+  <script>
+    // Validation Status pull — client-side JS for the "Pull ValidationStatus" button.
+    // Calls the /refreshValidationStatus backend endpoint (avoids CORS) which generates
+    // a fresh 2-legged token and calls /validationStatus every time.
+    const _vsClientId = ${JSON.stringify(clientId)};
+    const _vsClientSecret = ${JSON.stringify(clientSecret)};
+    const _vsMemberId = ${JSON.stringify(memberId || '')};
+
+    function escapeHtmlJs(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatFieldLabel(key) {
+      return key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()
+        .replace(/^./, c => c.toUpperCase());
+    }
+
+    function buildFieldCardsJs(obj, memberId) {
+      let html = '';
+      html += \`<div>
+        <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Member ID</div>
+        <div style="font-size:14px;font-weight:600;color:#333;font-family:monospace;">\${escapeHtmlJs(memberId || '—')}</div>
+      </div>\`;
+
+      if (!obj || typeof obj !== 'object') return html;
+
+      function addCard(label, value, tooltipField) {
+        const display = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : escapeHtmlJs(String(value));
+        html += \`<div>
+          <div style="font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">
+            \${escapeHtmlJs(formatFieldLabel(label))}
+            <span class="tooltip-icon" data-tooltip-text="API: /validationStatus&#10;Field: \${escapeHtmlJs(tooltipField)}">ⓘ</span>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:#333;">\${display}</div>
+        </div>\`;
+      }
+
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === 'id' || value === null || value === undefined) continue;
+        if (['string','number','boolean'].includes(typeof value)) {
+          addCard(key, value, \`elements[0].\${key}\`);
+        } else if (typeof value === 'object' && !Array.isArray(value)) {
+          for (const [nk, nv] of Object.entries(value)) {
+            if (nv === null || nv === undefined) continue;
+            if (['string','number','boolean'].includes(typeof nv)) {
+              addCard(nk, nv, \`elements[0].\${key}.\${nk}\`);
+            }
+          }
+        }
+      }
+      return html;
+    }
+
+    function renderValidationData(data) {
+      const content = document.getElementById('validationStatusContent');
+      if (!content) return;
+
+      if (data.error) {
+        content.innerHTML = \`
+          <div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:16px;color:#e65100;font-size:14px;">
+            <strong>Unavailable:</strong> \${escapeHtmlJs(data.error)}
+            <div style="margin-top:8px;color:#bf360c;font-size:13px;">
+              This typically means the <code>r_validation_status</code> scope is not enabled on your LinkedIn app.
+            </div>
+          </div>\`;
+        return;
+      }
+
+      const results = data.elements || data.validationResults || data.validationQueries || [];
+      const firstResult = results[0] || data;
+      const fieldCards = buildFieldCardsJs(firstResult, _vsMemberId);
+
+      content.innerHTML = \`
+        <div class="info-card">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;margin-bottom:20px;">
+            \${fieldCards}
+          </div>
+          <details>
+            <summary style="cursor:pointer;font-size:13px;color:#0A66C2;font-weight:600;padding:8px 0;border-top:1px solid #e0e0e0;margin-top:4px;">Full API Response</summary>
+            <pre style="margin-top:12px;background:#f5f5f5;padding:16px;border-radius:4px;font-size:12px;overflow-x:auto;">\${escapeHtmlJs(JSON.stringify(data, null, 2))}</pre>
+          </details>
+        </div>\`;
+
+      // Re-bind tooltip icons on the newly injected content
+      const tooltipIcons = content.querySelectorAll('.tooltip-icon');
+      tooltipIcons.forEach(icon => {
+        icon.addEventListener('mouseenter', () => {
+          const text = icon.getAttribute('data-tooltip-text');
+          const lines = text.split('\\n');
+          let apiEndpoint = '', fieldPath = '';
+          lines.forEach(line => {
+            if (line.startsWith('API:')) apiEndpoint = line.replace('API:', '').trim();
+            else if (line.startsWith('Field:')) fieldPath = (fieldPath ? fieldPath + '\\n' : '') + line.replace('Field:', '').trim();
+          });
+          showTerminalTooltip(apiEndpoint, fieldPath);
+        });
+        icon.addEventListener('mouseleave', hideTerminalTooltip);
+      });
+    }
+
+    async function pullValidationStatus() {
+      const button = document.getElementById('pullValidationBtn');
+      if (!button) return;
+
+      button.disabled = true;
+      button.style.opacity = '0.7';
+      button.textContent = 'Fetching...';
+
+      try {
+        const params = new URLSearchParams({
+          clientId: _vsClientId,
+          clientSecret: _vsClientSecret,
+          memberId: _vsMemberId
+        });
+        const response = await fetch('/refreshValidationStatus?' + params.toString());
+        const result = await response.json();
+        renderValidationData(result.success ? result.data : { error: result.error });
+      } catch (fetchError) {
+        renderValidationData({ error: 'Network error: ' + fetchError.message });
+      } finally {
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.textContent = 'Pull ValidationStatus';
+      }
+    }
   </script>
 </body>
 </html>`;

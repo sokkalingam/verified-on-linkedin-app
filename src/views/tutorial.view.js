@@ -1,4 +1,4 @@
-function buildTutorialSteps(accessToken, clientId, scopes) {
+function buildTutorialSteps(accessToken, clientId, scopes, memberId = null) {
   const maskedToken = accessToken ? `${accessToken.substring(0, 20)}...` : 'YOUR_ACCESS_TOKEN';
   const scopeList = scopes || 'r_verify r_profile_basicinfo';
   const scopeEncoded = encodeURIComponent(scopeList);
@@ -685,8 +685,224 @@ curl -X GET 'https://api.linkedin.com/rest/identityMe' \\
         </div>
       </div>
       
+      <!-- Step 5: 2-Legged OAuth Token (Client Credentials) -->
+      <div class="api-step-card">
+        <div class="api-step-header">
+          <span class="api-step-number">5</span>
+          <span class="api-step-title">Get 2-Legged OAuth Token (Validation Status)</span>
+        </div>
+        <div class="api-step-body">
+          <div class="api-description">
+            <div class="api-section-title">Overview</div>
+            <p>The <code>/validationStatus</code> endpoint requires a separate <strong>2-legged OAuth token</strong> (client credentials grant) — not the user's 3-legged access token from Step 2. This token authenticates your <em>application</em> rather than a user and requires the <code>r_validation_status</code> scope to be enabled on your LinkedIn app.</p>
+
+            <div class="api-section-title">Request</div>
+            <p>
+              <span class="api-http-method api-http-post">POST</span>
+              <span class="api-endpoint">/oauth/v2/accessToken</span>
+            </p>
+            <p style="margin-top: 8px; font-size: 13px; color: #666;">
+              <strong>Content-Type:</strong> <code>application/x-www-form-urlencoded</code>
+            </p>
+
+            <div class="api-section-title">Body Parameters</div>
+            <ul class="api-param-list">
+              <li class="api-param-item">
+                <span class="api-param-name">grant_type</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">Must be <code>client_credentials</code></div>
+              </li>
+              <li class="api-param-item">
+                <span class="api-param-name">scope</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">Must include <code>r_validation_status</code></div>
+              </li>
+              <li class="api-param-item">
+                <span class="api-param-name">client_id</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">Your application's Client ID</div>
+              </li>
+              <li class="api-param-item">
+                <span class="api-param-name">client_secret</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">Your application's Client Secret (keep secure!)</div>
+              </li>
+            </ul>
+
+            <div class="api-section-title">Response</div>
+            <p>Returns a JSON object containing:</p>
+            <ul class="api-param-list">
+              <li class="api-param-item">
+                <span class="api-param-name">access_token</span>
+                <div class="api-param-desc">Use this token in Step 6 to call <code>/validationStatus</code></div>
+              </li>
+              <li class="api-param-item">
+                <span class="api-param-name">expires_in</span>
+                <div class="api-param-desc">Token lifetime in seconds (typically 1800 = 30 minutes)</div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="api-code-section">
+            <div class="api-code-tabs">
+              <button class="api-code-tab active" onclick="switchTab(event, 'step5-curl')">cURL</button>
+              <button class="api-code-tab" onclick="switchTab(event, 'step5-response')">Response</button>
+            </div>
+
+            <div id="step5-curl" class="api-code-content active">
+              <div class="api-code-block">
+                <button class="api-copy-button" onclick="copyCode(this, 'step5-curl-code')">
+                  <svg class="api-copy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                  <span class="copy-text">Copy</span>
+                </button>
+<pre id="step5-curl-code"><span class="api-comment"># Different from Step 2 — grant_type is client_credentials (no user involved)</span>
+curl -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'grant_type=client_credentials' \\
+  -d 'scope=r_validation_status' \\
+  -d 'client_id=<span class="api-highlight">${clientId || 'YOUR_CLIENT_ID'}</span>' \\
+  -d 'client_secret=<span class="api-highlight">YOUR_CLIENT_SECRET</span>'</pre>
+              </div>
+            </div>
+
+            <div id="step5-response" class="api-code-content">
+              <div class="api-code-block">
+                <button class="api-copy-button" onclick="copyCode(this, 'step5-response-code')">
+                  <svg class="api-copy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                  <span class="copy-text">Copy</span>
+                </button>
+<pre id="step5-response-code"><span class="api-comment"># Use this access_token in Step 6</span>
+{
+  <span class="api-json-key">"access_token"</span>: <span class="api-json-string">"AQX..."</span>,
+  <span class="api-json-key">"expires_in"</span>: <span class="api-json-number">1800</span>
+}</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-note-box">
+            <div class="api-note-title">ⓘ Key differences from Step 2</div>
+            <div class="api-note-text">• <code>grant_type=client_credentials</code> — no user authorization needed</div>
+            <div class="api-note-text">• Token represents your <em>app</em>, not a specific user</div>
+            <div class="api-note-text">• Expires in 30 minutes (not 60 days)</div>
+            <div class="api-note-text">• Requires <code>r_validation_status</code> scope on your LinkedIn app</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 6: Fetch Validation Status -->
+      <div class="api-step-card">
+        <div class="api-step-header">
+          <span class="api-step-number">6</span>
+          <span class="api-step-title">Fetch Validation Status</span>
+        </div>
+        <div class="api-step-body">
+          <div class="api-description">
+            <div class="api-section-title">Overview</div>
+            <p>Query the validation status for a member using their <code>id</code> from the <code>/identityMe</code> response. This uses the 2-legged token from Step 5 and lets you validate a member's account state independently of their access token.</p>
+
+            <div class="api-section-title">Request</div>
+            <p>
+              <span class="api-http-method api-http-post">POST</span>
+              <span class="api-endpoint">/rest/validationStatus?action=retrieve</span>
+            </p>
+            <p style="margin-top: 8px; font-size: 13px; color: #666;">
+              <strong>Content-Type:</strong> <code>application/json</code>
+            </p>
+
+            <div class="api-section-title">Headers</div>
+            <ul class="api-param-list">
+              <li class="api-param-item">
+                <span class="api-param-name">LinkedIn-Version</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">API version: <code>202604</code></div>
+              </li>
+              <li class="api-param-item">
+                <span class="api-param-name">Authorization</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">Bearer token from Step 5 (2-legged token)</div>
+              </li>
+            </ul>
+
+            <div class="api-section-title">Body</div>
+            <ul class="api-param-list">
+              <li class="api-param-item">
+                <span class="api-param-name">validationQueries</span>
+                <span class="api-param-required">REQUIRED</span>
+                <div class="api-param-desc">Array of objects with <code>id</code> field — the member ID from <code>/identityMe</code></div>
+              </li>
+            </ul>
+
+            <div class="api-section-title">Response</div>
+            <p>Returns validation data for each queried member ID.</p>
+          </div>
+
+          <div class="api-code-section">
+            <div class="api-code-tabs">
+              <button class="api-code-tab active" onclick="switchTab(event, 'step6-curl')">cURL</button>
+              <button class="api-code-tab" onclick="switchTab(event, 'step6-response')">Response</button>
+            </div>
+
+            <div id="step6-curl" class="api-code-content active">
+              <div class="api-code-block">
+                <button class="api-copy-button" onclick="copyCode(this, 'step6-curl-code')">
+                  <svg class="api-copy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                  <span class="copy-text">Copy</span>
+                </button>
+<pre id="step6-curl-code"><span class="api-comment"># 2-legged access token from Step 5</span>
+<span class="api-comment"># Member ID from /identityMe response (Step 4)</span>
+curl -X POST 'https://api.linkedin.com/rest/validationStatus?action=retrieve' \\
+  -H 'LinkedIn-Version: 202604' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer <span class="api-highlight">TWO_LEGGED_TOKEN</span>' \\
+  -d '{
+    "validationQueries": [
+      { "id": "<span class="api-highlight">${memberId || 'MEMBER_ID_FROM_IDENTITY_ME'}</span>" }
+    ]
+  }'</pre>
+              </div>
+            </div>
+
+            <div id="step6-response" class="api-code-content">
+              <div class="api-code-block">
+                <button class="api-copy-button" onclick="copyCode(this, 'step6-response-code')">
+                  <svg class="api-copy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                  <span class="copy-text">Copy</span>
+                </button>
+<pre id="step6-response-code">{
+  <span class="api-json-key">"elements"</span>: [
+    {
+      <span class="api-json-key">"id"</span>: <span class="api-json-string">"${memberId || 'MEMBER_ID'}"</span>,
+      <span class="api-json-key">"validationStatus"</span>: <span class="api-json-string">"..."</span>,
+      <span class="api-json-key">"validationDetails"</span>: {
+        <span class="api-json-key">"accountStatus"</span>: <span class="api-json-string">"ACTIVE"</span>
+      }
+    }
+  ]
+}</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-note-box">
+            <div class="api-note-title">ⓘ Key points</div>
+            <div class="api-note-text">• The member <code>id</code> comes from the <code>/identityMe</code> response (Step 4)</div>
+            <div class="api-note-text">• Uses the 2-legged app token (Step 5), <strong>not</strong> the user's access token</div>
+            <div class="api-note-text">• Multiple IDs can be passed in a single request via the <code>validationQueries</code> array</div>
+          </div>
+        </div>
+      </div>
+
     </div>
-    
+
     <script>
       function switchTab(event, tabId) {
         // Get the parent tabs container

@@ -136,7 +136,7 @@ async function handleCallback(req, res, parsedUrl) {
       console.error('❌ Failed to log oauth_success:', err.message)
     );
 
-    const profileUrl = `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&scopes=${encodeURIComponent(credentials.scopes)}`;
+    const profileUrl = `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&clientSecret=${encodeURIComponent(credentials.clientSecret)}&scopes=${encodeURIComponent(credentials.scopes)}`;
 
     // Store before redirecting so the second invocation can recover if it arrives
     // after this point but before its own LinkedIn call returns 400.

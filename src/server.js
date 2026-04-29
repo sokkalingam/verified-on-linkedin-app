@@ -8,6 +8,7 @@ const { handleHome } = require('./routes/home.route');
 const { handleAuth, handleCallback } = require('./routes/auth.route');
 const { handleMemberProfile } = require('./routes/profile.route');
 const { handleDashboard } = require('./routes/dashboard.route');
+const { handleRefreshValidationStatus } = require('./routes/validation-status.route');
 const { initializeDatabase } = require('./services/usage.service');
 
 // Initialize database connection on startup (runs on each cold start)
@@ -34,6 +35,8 @@ async function handler(req, res) {
       await handleMemberProfile(req, res, parsedUrl);
     } else if (pathname === '/dashboard') {
       await handleDashboard(req, res, parsedUrl);
+    } else if (pathname === '/refreshValidationStatus') {
+      await handleRefreshValidationStatus(req, res, parsedUrl);
     } else {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found');

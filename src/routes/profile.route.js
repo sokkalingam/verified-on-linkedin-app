@@ -1,4 +1,4 @@
-const { fetchVerificationReport, fetchProfileInfo } = require('../services/linkedin.service');
+const { fetchVerificationReport, fetchProfileInfo, getClientCredentialsToken, fetchValidationStatus } = require('../services/linkedin.service');
 const { getProfilePage } = require('../views/profile.view');
 const { buildTutorialSteps } = require('../views/tutorial.view');
 const { getErrorPage } = require('../views/error.view');
@@ -7,6 +7,7 @@ const { logUsage } = require('../services/usage.service');
 async function handleMemberProfile(req, res, parsedUrl) {
   const accessToken = parsedUrl.query.token;
   const clientId = parsedUrl.query.clientId;
+  const clientSecret = parsedUrl.query.clientSecret;
   const scopes = parsedUrl.query.scopes || 'r_verify r_profile_basicinfo';
   
   if (!accessToken) {
@@ -37,13 +38,32 @@ async function handleMemberProfile(req, res, parsedUrl) {
     
     const profileInfo = await fetchProfileInfo(accessToken);
     console.log('✅ Profile information received');
-    
-    // Build tutorial data
-    const tutorialHTML = buildTutorialSteps(accessToken, clientId, scopes);
-    
+
+    // Fetch validation status using a 2-legged OAuth token (client credentials).
+    // This is a separate token from the user's access token and requires the
+    // r_validation_status scope to be enabled on the LinkedIn app.
+    // Failures are non-fatal — the page still renders without this section.
+    let validationStatus = null;
+    const memberId = profileInfo.id;
+    if (memberId && clientSecret) {
+      try {
+        console.log('\n📡 Fetching validation status...');
+        const twoLeggedToken = await getClientCredentialsToken(clientId, clientSecret);
+        console.log('✅ 2-legged access token obtained');
+        validationStatus = await fetchValidationStatus(twoLeggedToken, memberId);
+        console.log('✅ Validation status received');
+      } catch (validationError) {
+        console.warn(`⚠️ Validation status unavailable: ${validationError.message}`);
+        validationStatus = { error: validationError.message };
+      }
+    }
+
+    // Build tutorial data — pass memberId for the validation status curl examples
+    const tutorialHTML = buildTutorialSteps(accessToken, clientId, scopes, memberId);
+
     // Display profile page
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(getProfilePage(profileInfo, verificationReport, tutorialHTML));
+    res.end(getProfilePage(profileInfo, verificationReport, tutorialHTML, validationStatus, clientId, clientSecret));
     
     // Log successful API call - get tier from scopes (if available, default to 'lite')
     const tier = scopes.includes('r_account_signals') ? 'plus_signals' : scopes.includes('r_verify_details') ? 'plus' : 'lite';
