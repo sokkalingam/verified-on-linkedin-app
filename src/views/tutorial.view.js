@@ -1,7 +1,8 @@
-function buildTutorialSteps(accessToken, clientId, scopes, memberId = null) {
+function buildTutorialSteps(accessToken, clientId, scopes, memberId = null, twoLeggedToken = null) {
   const maskedToken = accessToken ? `${accessToken.substring(0, 20)}...` : 'YOUR_ACCESS_TOKEN';
   const scopeList = scopes || 'r_verify r_profile_basicinfo';
   const scopeEncoded = encodeURIComponent(scopeList);
+  const twoLeggedDisplay = twoLeggedToken || 'TWO_LEGGED_TOKEN';
   
   return `
     <style>
@@ -860,7 +861,7 @@ curl -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \\
 curl -X POST 'https://api.linkedin.com/rest/validationStatus?action=retrieve' \\
   -H 'LinkedIn-Version: 202604' \\
   -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer <span class="api-highlight">TWO_LEGGED_TOKEN</span>' \\
+  -H 'Authorization: Bearer <span class="api-highlight">${twoLeggedDisplay}</span>' \\
   -d '{
     "validationQueries": [
       { "id": "<span class="api-highlight">${memberId || 'MEMBER_ID_FROM_IDENTITY_ME'}</span>" }

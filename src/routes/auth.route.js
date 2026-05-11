@@ -136,7 +136,23 @@ async function handleCallback(req, res, parsedUrl) {
       console.error('❌ Failed to log oauth_success:', err.message)
     );
 
-    const profileUrl = `/memberProfile?token=${encodeURIComponent(accessToken)}&clientId=${encodeURIComponent(credentials.clientId)}&clientSecret=${encodeURIComponent(credentials.clientSecret)}&scopes=${encodeURIComponent(credentials.scopes)}`;
+    const profileUrl = `/memberProfile?token=${encodeURIComponent(accessToken)}`;
+
+    // Stash the auxiliary credentials server-side keyed by a hash of the access token.
+    // The profile page reads them back to power the Validation Status section and
+    // tutorial — the URL itself only carries the access token.
+    // Must be awaited: the redirect that follows triggers an immediate GET on the
+    // profile page, which looks this row up by the same key.
+    const credsKey = `creds:${crypto.createHash('sha256').update(accessToken).digest('hex')}`;
+    try {
+      await createSession(credsKey, {
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        scopes: credentials.scopes
+      });
+    } catch (credsErr) {
+      console.error('❌ Failed to store creds session:', credsErr.message);
+    }
 
     // Store before redirecting so the second invocation can recover if it arrives
     // after this point but before its own LinkedIn call returns 400.
