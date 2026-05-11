@@ -15,11 +15,10 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const USAGE_TABLE = NODE_ENV === 'production' ? 'usage_logs' : 'usage_logs_local';
 
 let supabaseClient = null;
+let initPromise = null;
 
-// Initialize Supabase client
-async function initializeDatabase() {
-  if (supabaseClient) return;
-
+// Internal: run the actual Supabase handshake exactly once.
+async function _doInitialize() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.warn('⚠️  usage.service: SUPABASE_URL/ANON_KEY not set — usage tracking disabled');
     return;
@@ -27,10 +26,10 @@ async function initializeDatabase() {
 
   try {
     const { createClient } = require('@supabase/supabase-js');
-    supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Test connection by querying the table schema
-    const { error } = await supabaseClient
+    const { error } = await client
       .from(USAGE_TABLE)
       .select('*')
       .limit(1);
@@ -38,22 +37,39 @@ async function initializeDatabase() {
     if (error) {
       console.warn(`⚠️  usage.service: Failed to connect to Supabase table "${USAGE_TABLE}": ${error.message}`);
       console.warn('   Usage tracking disabled for this invocation.');
-      supabaseClient = null;
       return;
     }
 
+    supabaseClient = client;
     const env = NODE_ENV === 'production' ? 'PRODUCTION' : 'LOCAL DEV';
     console.log(`✅ usage.service: Connected to Supabase [${env}] — table: ${USAGE_TABLE}`);
   } catch (exception) {
     console.warn(`⚠️  usage.service: Failed to initialize Supabase: ${exception.message}`);
     console.warn('   Usage tracking disabled for this invocation.');
-    supabaseClient = null;
   }
+}
+
+// Memoize the in-flight init promise so every caller — server startup and the
+// first request after a cold Lambda spin-up — awaits the *same* handshake
+// instead of racing it. If init fails (client stays null), clear the promise
+// so a subsequent call retries instead of being stuck for the Lambda's life.
+function initializeDatabase() {
+  if (supabaseClient) return Promise.resolve();
+  if (!initPromise) {
+    initPromise = _doInitialize().finally(() => {
+      if (!supabaseClient) initPromise = null;
+    });
+  }
+  return initPromise;
 }
 
 // Log usage event to Supabase
 // eventType: 'form_submission', 'oauth_success', 'oauth_failure', 'api_success', 'api_failure'
 async function logUsage(clientId, tier, eventType) {
+  // Awaiting initializeDatabase() here closes the cold-start race: server.js
+  // fires init non-blocking at module load, so the first request on a fresh
+  // Lambda would otherwise run before the Supabase handshake completes.
+  await initializeDatabase();
   if (!supabaseClient) {
     console.error('❌ Supabase client not initialized. Call initializeDatabase() first.');
     return;
@@ -82,6 +98,10 @@ async function logUsage(clientId, tier, eventType) {
 
 // Get all usage logs from Supabase
 async function getAllUsageLogs() {
+  // Same cold-start guard as logUsage — the /dashboard handler hit this race
+  // and silently returned 0 across every metric while usage_logs actually had
+  // thousands of rows.
+  await initializeDatabase();
   if (!supabaseClient) {
     console.error('❌ Supabase client not initialized. Call initializeDatabase() first.');
     return [];
