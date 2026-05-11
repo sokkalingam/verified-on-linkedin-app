@@ -1,20 +1,27 @@
+const crypto = require('crypto');
 const { fetchVerificationReport, fetchProfileInfo, getClientCredentialsToken, fetchValidationStatus } = require('../services/linkedin.service');
 const { getProfilePage } = require('../views/profile.view');
 const { buildTutorialSteps } = require('../views/tutorial.view');
 const { getErrorPage } = require('../views/error.view');
 const { logUsage } = require('../services/usage.service');
+const { getSession } = require('../services/session.service');
 
 async function handleMemberProfile(req, res, parsedUrl) {
   const accessToken = parsedUrl.query.token;
-  const clientId = parsedUrl.query.clientId;
-  const clientSecret = parsedUrl.query.clientSecret;
-  const scopes = parsedUrl.query.scopes || 'r_verify r_profile_basicinfo';
-  
+
   if (!accessToken) {
     res.writeHead(400, { 'Content-Type': 'text/html' });
     res.end(getErrorPage('No access token provided'));
     return;
   }
+
+  // The auth callback stashed clientId/clientSecret/scopes server-side keyed by
+  // sha256(accessToken). Look them up here so the URL only carries the token.
+  const credsKey = `creds:${crypto.createHash('sha256').update(accessToken).digest('hex')}`;
+  const storedCreds = await getSession(credsKey).catch(() => null);
+  const clientId = storedCreds?.clientId || '';
+  const clientSecret = storedCreds?.clientSecret || '';
+  const scopes = storedCreds?.scopes || 'r_verify r_profile_basicinfo';
   
   try {
     // Fetch verification report
@@ -44,22 +51,33 @@ async function handleMemberProfile(req, res, parsedUrl) {
     // r_validation_status scope to be enabled on the LinkedIn app.
     // Failures are non-fatal — the page still renders without this section.
     let validationStatus = null;
+    let twoLeggedToken = null;
     const memberId = profileInfo.id;
     if (memberId && clientSecret) {
       try {
-        console.log('\n📡 Fetching validation status...');
-        const twoLeggedToken = await getClientCredentialsToken(clientId, clientSecret);
+        console.log('\n📡 Fetching 2-legged access token...');
+        twoLeggedToken = await getClientCredentialsToken(clientId, clientSecret);
         console.log('✅ 2-legged access token obtained');
-        validationStatus = await fetchValidationStatus(twoLeggedToken, memberId);
-        console.log('✅ Validation status received');
-      } catch (validationError) {
-        console.warn(`⚠️ Validation status unavailable: ${validationError.message}`);
-        validationStatus = { error: validationError.message };
+      } catch (tokenError) {
+        console.warn(`⚠️ 2-legged token unavailable: ${tokenError.message}`);
+        validationStatus = { error: tokenError.message };
+      }
+
+      if (twoLeggedToken) {
+        try {
+          console.log('\n📡 Fetching validation status...');
+          validationStatus = await fetchValidationStatus(twoLeggedToken, memberId);
+          console.log('✅ Validation status received');
+        } catch (validationError) {
+          console.warn(`⚠️ Validation status unavailable: ${validationError.message}`);
+          validationStatus = { error: validationError.message };
+        }
       }
     }
 
-    // Build tutorial data — pass memberId for the validation status curl examples
-    const tutorialHTML = buildTutorialSteps(accessToken, clientId, scopes, memberId);
+    // Build tutorial data — pass memberId and the 2-legged token so the step-6 curl
+    // shows the real bearer instead of the TWO_LEGGED_TOKEN placeholder.
+    const tutorialHTML = buildTutorialSteps(accessToken, clientId, scopes, memberId, twoLeggedToken);
 
     // Display profile page
     res.writeHead(200, { 'Content-Type': 'text/html' });

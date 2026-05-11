@@ -26,7 +26,7 @@ function buildValidationContentHTML(data, escapedMemberId) {
   }
 
   // Extract the first result element from common response shapes
-  const results = data.elements || data.validationResults || data.validationQueries || [];
+  const results = data.elements || data.value || data.validationResults || data.validationQueries || [];
   const firstResult = results[0] || data;
 
   // Build field cards for all scalar and simple-object fields
@@ -34,13 +34,9 @@ function buildValidationContentHTML(data, escapedMemberId) {
 
   return `
       <div class="info-card">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px;">
           ${fieldCards}
         </div>
-        <details>
-          <summary style="cursor: pointer; font-size: 13px; color: #0A66C2; font-weight: 600; padding: 8px 0; border-top: 1px solid #e0e0e0; margin-top: 4px;">Full API Response</summary>
-          <pre style="margin-top: 12px; background: #f5f5f5; padding: 16px; border-radius: 4px; font-size: 12px; overflow-x: auto;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
-        </details>
       </div>`;
 }
 
@@ -891,6 +887,16 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
           <pre>${JSON.stringify(verificationReport, null, 2)}</pre>
         </div>
       </div>
+
+      <div class="collapsible" id="validationStatusJsonCollapsible" style="${validationStatus && !validationStatus.error ? '' : 'display: none;'}">
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          <span class="collapsible-header-title">Validation Status</span>
+          <span class="collapsible-chevron">▼</span>
+        </div>
+        <div class="collapsible-content">
+          <pre id="validationStatusJsonPre">${validationStatus && !validationStatus.error ? JSON.stringify(validationStatus, null, 2) : ''}</pre>
+        </div>
+      </div>
     </div>
     
     <div class="tutorial-section">
@@ -1091,19 +1097,15 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
         return;
       }
 
-      const results = data.elements || data.validationResults || data.validationQueries || [];
+      const results = data.elements || data.value || data.validationResults || data.validationQueries || [];
       const firstResult = results[0] || data;
       const fieldCards = buildFieldCardsJs(firstResult, _vsMemberId);
 
       content.innerHTML = \`
         <div class="info-card">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;">
             \${fieldCards}
           </div>
-          <details>
-            <summary style="cursor:pointer;font-size:13px;color:#0A66C2;font-weight:600;padding:8px 0;border-top:1px solid #e0e0e0;margin-top:4px;">Full API Response</summary>
-            <pre style="margin-top:12px;background:#f5f5f5;padding:16px;border-radius:4px;font-size:12px;overflow-x:auto;">\${escapeHtmlJs(JSON.stringify(data, null, 2))}</pre>
-          </details>
         </div>\`;
 
       // Re-bind tooltip icons on the newly injected content
@@ -1121,6 +1123,14 @@ Field: accountSignals.accountCreatedOn">ⓘ</span>
         });
         icon.addEventListener('mouseleave', hideTerminalTooltip);
       });
+
+      // Mirror the raw JSON into the third collapsible under "API Response"
+      const jsonCollapsible = document.getElementById('validationStatusJsonCollapsible');
+      const jsonPre = document.getElementById('validationStatusJsonPre');
+      if (jsonCollapsible && jsonPre) {
+        jsonPre.textContent = JSON.stringify(data, null, 2);
+        jsonCollapsible.style.display = '';
+      }
     }
 
     async function pullValidationStatus() {
